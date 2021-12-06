@@ -167,7 +167,7 @@ fn run_example<T: Session>(mut session: T) -> Result<(), Box<dyn Error>> {
     session.insert_string_record(
         "root.ln.wf02.wt02",
         vec!["id", "location"],
-        vec!["SN:001", "中区一层"],
+        vec!["SN:001", "BeiJing"],
         Local::now().timestamp_millis(),
         false,
     )?;
