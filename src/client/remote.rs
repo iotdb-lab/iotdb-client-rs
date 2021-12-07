@@ -80,7 +80,7 @@ impl Default for Config {
 pub struct RpcSession {
     config: Config,
     session_id: Option<i64>,
-    request_statement_id: i64,
+    statement_id: i64,
     client: TSIServiceSyncClient<Box<dyn TInputProtocol>, Box<dyn TOutputProtocol>>,
 }
 
@@ -110,7 +110,7 @@ impl RpcSession {
         Ok(Self {
             config: config.clone(),
             session_id: None,
-            request_statement_id: -1,
+            statement_id: -1,
             client: TSIServiceSyncClient::new(input_protocol, output_protocol),
         })
     }
@@ -274,7 +274,7 @@ impl Session for RpcSession {
             self.session_id = resp.session_id;
 
             if let Some(session_id) = self.session_id {
-                self.request_statement_id = self.client.request_statement_id(session_id)?;
+                self.statement_id = self.client.request_statement_id(session_id)?;
             }
 
             Ok(())
@@ -508,7 +508,7 @@ impl Session for RpcSession {
             let resp = self.client.execute_statement(TSExecuteStatementReq {
                 session_id: session_id,
                 statement: statement.to_string(),
-                statement_id: self.request_statement_id,
+                statement_id: self.statement_id,
                 fetch_size: self.config.fetch_size,
                 timeout: timeout_ms.into(),
                 enable_redirect_query: None,
@@ -581,7 +581,7 @@ impl Session for RpcSession {
             let resp = self.client.execute_query_statement(TSExecuteStatementReq {
                 session_id: session_id,
                 statement: statement.to_string(),
-                statement_id: self.request_statement_id,
+                statement_id: self.statement_id,
                 fetch_size: self.config.fetch_size,
                 timeout: timeout_ms.into(),
                 enable_redirect_query: None,
@@ -887,7 +887,7 @@ impl Session for RpcSession {
                     fetch_size: self.config.fetch_size,
                     start_time: start_time,
                     end_time: end_time,
-                    statement_id: self.request_statement_id,
+                    statement_id: self.statement_id,
                     enable_redirect_query: None,
                     jdbc_query: None,
                 })?;
@@ -958,7 +958,7 @@ impl Session for RpcSession {
                 .execute_update_statement(TSExecuteStatementReq {
                     session_id: session_id,
                     statement: statement.to_string(),
-                    statement_id: self.request_statement_id,
+                    statement_id: self.statement_id,
                     fetch_size: self.config.fetch_size,
                     timeout: self.config.timeout_ms,
                     enable_redirect_query: None,

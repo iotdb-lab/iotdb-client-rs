@@ -58,7 +58,7 @@ Put this in your `Cargo.toml`:
 
 ```toml
 [dependencies]
-iotdb-client-rs="0.1.0"
+iotdb-client-rs="0.2.0"
 chrono="0.4.19"
 prettytable-rs="0.8.0"
 ```
@@ -76,40 +76,6 @@ use iotdb_client_rs::client::{DataSet, MeasurementSchema, Session, Tablet, Value
 use iotdb_client_rs::protocal::{TSCompressionType, TSDataType, TSEncoding};
 use prettytable::{cell, Cell, Row, Table};
 
-fn print_dataset(dataset: Box<dyn DataSet>) -> Result<(), Box<dyn Error>> {
-    let mut table = Table::new();
-
-    let mut title_cells: Vec<Cell> = Vec::new();
-
-    let is_ignore_timestamp = dataset.is_ignore_timestamp();
-    if !is_ignore_timestamp {
-        title_cells.push(cell!("Time"));
-    }
-
-    dataset
-        .get_column_names()
-        .iter()
-        .for_each(|name| title_cells.push(cell!(name)));
-
-    table.set_titles(Row::new(title_cells));
-
-    dataset.for_each(|record| {
-        let mut row_cells: Vec<Cell> = Vec::new();
-        if !is_ignore_timestamp {
-            row_cells.push(cell!(record.timestamp.to_string()));
-        }
-
-        record
-            .values
-            .iter()
-            .for_each(|v| row_cells.push(cell!(v.to_string())));
-
-        table.add_row(Row::new(row_cells));
-    });
-    table.printstd();
-    Ok(())
-}
-
 fn main() -> Result<(), Box<dyn Error>> {
     let config = Config {
         host: String::from("127.0.0.1"),
@@ -122,10 +88,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     //rpc session
     let session = RpcSession::new(&config)?;
     run_example(session)?;
-
-    //Local filesystem session
-    // let session = DirectSession::new("/data/apache-iotdb-0.12.3-server-bin");
-    // run_example(session)?;
 
     Ok(())
 }
@@ -366,4 +328,39 @@ fn create_tablet(row_count: i32, start_timestamp: i64) -> Tablet {
     });
     tablet
 }
+
+fn print_dataset(dataset: Box<dyn DataSet>) -> Result<(), Box<dyn Error>> {
+    let mut table = Table::new();
+
+    let mut title_cells: Vec<Cell> = Vec::new();
+
+    let is_ignore_timestamp = dataset.is_ignore_timestamp();
+    if !is_ignore_timestamp {
+        title_cells.push(cell!("Time"));
+    }
+
+    dataset
+        .get_column_names()
+        .iter()
+        .for_each(|name| title_cells.push(cell!(name)));
+
+    table.set_titles(Row::new(title_cells));
+
+    dataset.for_each(|record| {
+        let mut row_cells: Vec<Cell> = Vec::new();
+        if !is_ignore_timestamp {
+            row_cells.push(cell!(record.timestamp.to_string()));
+        }
+
+        record
+            .values
+            .iter()
+            .for_each(|v| row_cells.push(cell!(v.to_string())));
+
+        table.add_row(Row::new(row_cells));
+    });
+    table.printstd();
+    Ok(())
+}
+
 ```
