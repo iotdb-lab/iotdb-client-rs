@@ -121,7 +121,7 @@ impl Iterator for RpcDataSet {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.has_cached_results() {
-            let mut values: Vec<Value> = Vec::new();
+            let mut values: Vec<Value> = Vec::with_capacity(self.column_names.len());
 
             let ts = self.query_data_set.time.drain(0..8).collect::<Vec<u8>>();
             self.timestamp = i64::from_be_bytes(ts.try_into().unwrap());
@@ -617,8 +617,7 @@ impl Session for RpcSession {
                     column_index_map
                         .insert(*column_name_index_map.get(name).unwrap() as usize, index);
                 }
-
-                return Ok(Box::new(RpcDataSet {
+                let dataset = RpcDataSet {
                     // session: self,
                     timestamp: -1,
                     is_ignore_time_stamp: resp.ignore_time_stamp,
@@ -629,7 +628,8 @@ impl Session for RpcSession {
                     row_index: 0,
                     column_index_map: column_index_map,
                     column_name_index_map: column_name_index_map,
-                }));
+                };
+                return Ok(Box::new(dataset));
             } else {
                 return Err(status
                     .message
@@ -655,8 +655,8 @@ impl Session for RpcSession {
         if let Some(session_id) = self.session_id {
             let mut values_bytes: Vec<u8> = Vec::new();
             values.iter().for_each(|v| {
-                let mut value_data: Vec<u8> = v.into();
-                values_bytes.append(&mut value_data);
+                let mut value_bytes: Vec<u8> = v.into();
+                values_bytes.append(&mut value_bytes);
             });
             let status = self.client.insert_record(TSInsertRecordReq::new(
                 session_id,
@@ -763,7 +763,7 @@ impl Session for RpcSession {
                 .for_each(|ts| timestamps_list.append(&mut ts.to_be_bytes().to_vec()));
 
             if !sorted {
-                tablet.sort();
+                // todo: tablet.sort();
             }
             let status = self.client.insert_tablet(TSInsertTabletReq {
                 session_id: session_id,
@@ -800,7 +800,7 @@ impl Session for RpcSession {
     ) -> Result<(), Box<dyn Error>> {
         if let Some(session_id) = self.session_id {
             if !sorted {
-                tablets.iter().for_each(|t| t.sort());
+                //todo: tablets.iter().for_each(|t| t.sort());
             }
             let status = self.client.insert_tablets(TSInsertTabletsReq {
                 session_id: session_id,
