@@ -186,7 +186,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         "root.sg_rs.dev0",
         vec![
             Local::now().timestamp_millis(),
-            Local::now().timestamp_millis() + 1,
+            Local::now().timestamp_millis() -1,
         ],
         vec![
             vec!["restart_count", "tick_count", "price"],
@@ -195,8 +195,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         vec![
             vec![Value::Int32(1), Value::Int64(2018), Value::Double(1988.1)],
             vec![
-                Value::Float(12.1),
-                Value::Text("Test Device 1".to_string()),
+                Value::Float(36.8),
+                Value::Text("thermograph".to_string()),
                 Value::Bool(false),
             ],
         ],

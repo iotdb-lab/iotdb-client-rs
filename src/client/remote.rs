@@ -778,8 +778,19 @@ impl<'a> Session<'a> for RpcSession {
         values: Vec<Vec<super::Value>>,
         sorted: bool,
     ) -> Result<(), Box<dyn Error>> {
+        let mut sorted_timestamps = timestamps;
+        let mut sorted_measurements = measurements;
+        let mut sorted_values = values;
+
+        if !sorted {
+            let permutation = permutation::sort(&sorted_timestamps[..]);
+            sorted_timestamps = permutation.apply_slice(&sorted_timestamps[..]);
+            sorted_measurements = permutation.apply_slice(&sorted_measurements[..]);
+            sorted_values = permutation.apply_slice(&sorted_values[..]);
+        }
+
         if let Some(session_id) = self.session_id {
-            let values_list = values
+            let values_list = sorted_values
                 .iter()
                 .map(|vec| {
                     let mut values: Vec<u8> = Vec::new();
@@ -795,12 +806,12 @@ impl<'a> Session<'a> for RpcSession {
                     .insert_records_of_one_device(TSInsertRecordsOfOneDeviceReq::new(
                         session_id,
                         device_id.to_string(),
-                        measurements
+                        sorted_measurements
                             .iter()
                             .map(|vec| vec.iter().map(|s| s.to_string()).collect())
                             .collect(),
                         values_list,
-                        timestamps,
+                        sorted_timestamps,
                         false,
                     ))?;
             check_status(status)
