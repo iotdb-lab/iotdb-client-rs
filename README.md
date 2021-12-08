@@ -50,6 +50,8 @@ Apache IoTDB Github: https://github.com/apache/iotdb
 
 ## Prerequisites
 
+apache-iotdb 0.12.0 and newer.
+
 ## How to Use the Client (Quick Start)
 
 ## Usage
@@ -58,13 +60,31 @@ Put this in your `Cargo.toml`:
 
 ```toml
 [dependencies]
-iotdb-client-rs="0.2.0"
+iotdb-client-rs="0.3.0"
 chrono="0.4.19"
 prettytable-rs="0.8.0"
 ```
 
-
 ```rust
+//
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+//
+
 use std::error::Error;
 use std::vec;
 
@@ -72,9 +92,9 @@ use chrono;
 
 use chrono::Local;
 use iotdb_client_rs::client::remote::{Config, RpcSession};
-use iotdb_client_rs::client::{DataSet, MeasurementSchema, Session, Tablet, Value};
+use iotdb_client_rs::client::{MeasurementSchema, RowRecord, Session, Tablet, Value};
 use iotdb_client_rs::protocal::{TSCompressionType, TSDataType, TSEncoding};
-use prettytable::{cell, Cell, Row, Table};
+use prettytable::{cell, Row, Table};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let config = Config {
@@ -86,13 +106,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     //rpc session
-    let session = RpcSession::new(&config)?;
-    run_example(session)?;
-
-    Ok(())
-}
-
-fn run_example<T: Session>(mut session: T) -> Result<(), Box<dyn Error>> {
+    let mut session = RpcSession::new(&config)?;
     session.open()?;
 
     let tz = session.get_time_zone()?;
@@ -109,7 +123,7 @@ fn run_example<T: Session>(mut session: T) -> Result<(), Box<dyn Error>> {
 
     //create_timeseries
     session.create_timeseries(
-        "root.sg1.dev2.status",
+        "root.sg_rs.dev2.status",
         TSDataType::Float,
         TSEncoding::Plain,
         TSCompressionType::SNAPPY,
@@ -118,21 +132,21 @@ fn run_example<T: Session>(mut session: T) -> Result<(), Box<dyn Error>> {
         None,
         None,
     )?;
-    session.delete_timeseries(vec!["root.sg1.dev2.status"])?;
+    session.delete_timeseries(vec!["root.sg_rs.dev2.status"])?;
 
     //insert_record
     session.insert_record(
-        "root.sg1.dev5",
+        "root.sg_rs.dev5",
         vec!["online", "desc"],
         vec![Value::Bool(false), Value::Text("F4145".to_string())],
         Local::now().timestamp_millis(),
         false,
     )?;
-    session.delete_timeseries(vec!["root.sg1.dev5.online", "root.sg1.dev5.desc"])?;
+    session.delete_timeseries(vec!["root.sg_rs.dev5.online", "root.sg_rs.dev5.desc"])?;
 
     //insert_records
     session.insert_records(
-        vec!["root.sg1.dev1"],
+        vec!["root.sg_rs.dev1"],
         vec![vec![
             "restart_count",
             "tick_count",
@@ -152,12 +166,12 @@ fn run_example<T: Session>(mut session: T) -> Result<(), Box<dyn Error>> {
         vec![Local::now().timestamp_millis()],
     )?;
     session.delete_timeseries(vec![
-        "root.sg1.dev1.restart_count",
-        "root.sg1.dev1.tick_count",
-        "root.sg1.dev1.price",
-        "root.sg1.dev1.temperature",
-        "root.sg1.dev1.description",
-        "root.sg1.dev1.status",
+        "root.sg_rs.dev1.restart_count",
+        "root.sg_rs.dev1.tick_count",
+        "root.sg_rs.dev1.price",
+        "root.sg_rs.dev1.temperature",
+        "root.sg_rs.dev1.description",
+        "root.sg_rs.dev1.status",
     ])?;
 
     //create_multi_timeseries
@@ -175,17 +189,20 @@ fn run_example<T: Session>(mut session: T) -> Result<(), Box<dyn Error>> {
 
     //delete_timeseries
     session.insert_string_record(
-        "root.ln.wf02.wt02",
+        "root.sg_rs.wf02.wt02",
         vec!["id", "location"],
-        vec!["SN:001", "Beijing"],
+        vec!["SN:001", "BeiJing"],
         Local::now().timestamp_millis(),
         false,
     )?;
-    session.delete_timeseries(vec!["root.ln.wf02.wt02.id", "root.ln.wf02.wt02.location"])?;
+    session.delete_timeseries(vec![
+        "root.sg_rs.wf02.wt02.id",
+        "root.sg_rs.wf02.wt02.location",
+    ])?;
 
     //insert_records_of_one_device
     session.insert_records_of_one_device(
-        "root.sg1.dev0",
+        "root.sg_rs.dev0",
         vec![
             Local::now().timestamp_millis(),
             Local::now().timestamp_millis() + 1,
@@ -221,42 +238,110 @@ fn run_example<T: Session>(mut session: T) -> Result<(), Box<dyn Error>> {
 
     //delete_data
     session.insert_records_of_one_device(
-        "root.sg1.dev1",
+        "root.sg_rs.dev1",
         vec![1, 16],
         vec![vec!["status"], vec!["status"]],
         vec![vec![Value::Bool(true)], vec![Value::Bool(true)]],
         true,
     )?;
-    session.delete_data(vec!["root.sg1.dev1.status"], 1, 16)?;
+    session.delete_data(vec!["root.sg_rs.dev1.status"], 1, 16)?;
 
-    let dataset = session.execute_query_statement("select * from root.ln.device2", None)?;
-    print_dataset(dataset)?;
-    // dataset.for_each(|r| println!("timestamp: {} {:?}", r.timestamp, r.values));
+    let mut dataset = session.execute_query_statement("select * from root.sg_rs.device2", None)?;
+
+    // Get columns, column types and values from the data set
+    // For example:
+    // dataset
+    //     .get_column_names()
+    //     .iter()
+    //     .for_each(|c| print!("{}\t", c));
+    // print!("\n");
+    // dataset
+    //     .get_data_types()
+    //     .iter()
+    //     .for_each(|c| print!("{:?}\t", c));
+    // print!("\n");
+    // dataset.for_each(|r| {
+    //     r.values.iter().for_each(|v| match v {
+    //         Value::Bool(v) => print!("{}\t", v),
+    //         Value::Int32(v) => print!("{}\t", v),
+    //         Value::Int64(v) => print!("{}\t", v),
+    //         Value::Float(v) => print!("{}\t", v),
+    //         Value::Double(v) => print!("{}\t", v),
+    //         Value::Text(v) => print!("{}\t", v),
+    //         Value::Null => print!("null\t"),
+    //     });
+    //     print!("\n");
+    // });
+
+    let mut table = Table::new();
+    table.set_titles(Row::new(
+        dataset
+            .get_column_names()
+            .iter()
+            .map(|c| cell!(c))
+            .collect(),
+    ));
+    dataset.for_each(|r: RowRecord| {
+        table.add_row(Row::new(
+            r.values.iter().map(|v: &Value| cell!(v)).collect(),
+        ));
+    });
+    table.printstd();
+
     // let timestamps: Vec<i64> = dataset.map(|r| r.timestamp).collect();
     // let count = dataset.count();
 
-    let ds = session.execute_statement("show timeseries", None)?;
-    print_dataset(ds)?;
+    let dataset = session.execute_statement("show timeseries", None)?;
+    let mut table = Table::new();
+    table.set_titles(Row::new(
+        dataset
+            .get_column_names()
+            .iter()
+            .map(|c| cell!(c))
+            .collect(),
+    ));
+    dataset.for_each(|r: RowRecord| {
+        table.add_row(Row::new(
+            r.values.iter().map(|v: &Value| cell!(v)).collect(),
+        ));
+    });
+    table.printstd();
 
     session.execute_batch_statement(vec![
-        "insert into root.sg1.dev6(time,s5) values(1,true)",
-        "insert into root.sg1.dev6(time,s5) values(2,true)",
-        "insert into root.sg1.dev6(time,s5) values(3,true)",
+        "insert into root.sg_rs.dev6(time,s5) values(1,true)",
+        "insert into root.sg_rs.dev6(time,s5) values(2,true)",
+        "insert into root.sg_rs.dev6(time,s5) values(3,true)",
     ])?;
 
-    let ds = session.execute_raw_data_query(
+    let dataset = session.execute_raw_data_query(
         vec![
-            "root.ln.device2.restart_count",
-            "root.ln.device2.tick_count",
-            "root.ln.device2.description",
+            "root.sg_rs.device2.restart_count",
+            "root.sg_rs.device2.tick_count",
+            "root.sg_rs.device2.description",
         ],
         0,
         i64::MAX,
     )?;
-    print_dataset(ds)?;
+    let mut table = Table::new();
+    table.set_titles(Row::new(
+        dataset
+            .get_column_names()
+            .iter()
+            .map(|c| cell!(c))
+            .collect(),
+    ));
+    dataset.for_each(|r: RowRecord| {
+        table.add_row(Row::new(
+            r.values.iter().map(|v: &Value| cell!(v)).collect(),
+        ));
+    });
+    //execute_raw_data_query
+    table.printstd();
 
-    if let Some(dataset) = session.execute_update_statement("delete timeseries root.sg1.dev1.*")? {
-        print_dataset(dataset)?;
+    if let Some(dataset) =
+        session.execute_update_statement("delete timeseries root.sg_rs.dev1.*")?
+    {
+        dataset.for_each(|r| println!("timestamp: {} {:?}", r.timestamp, r.values));
     }
 
     session.close()?;
@@ -266,7 +351,7 @@ fn run_example<T: Session>(mut session: T) -> Result<(), Box<dyn Error>> {
 
 fn create_tablet(row_count: i32, start_timestamp: i64) -> Tablet {
     let mut tablet = Tablet::new(
-        "root.ln.device2",
+        "root.sg_rs.device2",
         vec![
             MeasurementSchema::new(
                 String::from("status"),
@@ -328,39 +413,4 @@ fn create_tablet(row_count: i32, start_timestamp: i64) -> Tablet {
     });
     tablet
 }
-
-fn print_dataset(dataset: Box<dyn DataSet>) -> Result<(), Box<dyn Error>> {
-    let mut table = Table::new();
-
-    let mut title_cells: Vec<Cell> = Vec::new();
-
-    let is_ignore_timestamp = dataset.is_ignore_timestamp();
-    if !is_ignore_timestamp {
-        title_cells.push(cell!("Time"));
-    }
-
-    dataset
-        .get_column_names()
-        .iter()
-        .for_each(|name| title_cells.push(cell!(name)));
-
-    table.set_titles(Row::new(title_cells));
-
-    dataset.for_each(|record| {
-        let mut row_cells: Vec<Cell> = Vec::new();
-        if !is_ignore_timestamp {
-            row_cells.push(cell!(record.timestamp.to_string()));
-        }
-
-        record
-            .values
-            .iter()
-            .for_each(|v| row_cells.push(cell!(v.to_string())));
-
-        table.add_row(Row::new(row_cells));
-    });
-    table.printstd();
-    Ok(())
-}
-
 ```

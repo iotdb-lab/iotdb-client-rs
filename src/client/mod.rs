@@ -206,10 +206,11 @@ pub struct RowRecord {
 }
 pub trait DataSet: Iterator<Item = RowRecord> {
     fn get_column_names(&self) -> Vec<String>;
+    fn get_data_types(&self) -> Vec<TSDataType>;
     fn is_ignore_timestamp(&self) -> bool;
 }
 
-pub trait Session {
+pub trait Session<'a> {
     fn open(&mut self) -> Result<(), Box<dyn std::error::Error>>;
 
     fn close(&mut self) -> Result<(), Box<dyn std::error::Error>>;
@@ -274,18 +275,18 @@ pub trait Session {
     fn set_time_zone(&mut self, time_zone: &str) -> Result<(), Box<dyn Error>>;
 
     fn execute_statement<T>(
-        &mut self,
+        &'a mut self,
         statement: &str,
         timeout_ms: T,
-    ) -> Result<Box<dyn DataSet>, Box<dyn Error>>
+    ) -> Result<Box<dyn 'a + DataSet>, Box<dyn Error>>
     where
         T: Into<Option<i64>>;
 
     fn execute_query_statement<T>(
-        &mut self,
+        &'a mut self,
         statement: &str,
         timeout_ms: T,
-    ) -> Result<Box<dyn DataSet>, Box<dyn Error>>
+    ) -> Result<Box<dyn 'a + DataSet>, Box<dyn Error>>
     where
         T: Into<Option<i64>>;
 
@@ -325,14 +326,14 @@ pub trait Session {
     fn execute_batch_statement(&mut self, statemens: Vec<&str>) -> Result<(), Box<dyn Error>>;
 
     fn execute_raw_data_query(
-        &mut self,
+        &'a mut self,
         paths: Vec<&str>,
         start_time: i64,
         end_time: i64,
-    ) -> Result<Box<dyn DataSet>, Box<dyn Error>>;
+    ) -> Result<Box<dyn 'a + DataSet>, Box<dyn Error>>;
 
     fn execute_update_statement(
-        &mut self,
+        &'a mut self,
         statement: &str,
-    ) -> Result<Option<Box<dyn DataSet>>, Box<dyn Error>>;
+    ) -> Result<Option<Box<dyn 'a + DataSet>>, Box<dyn Error>>;
 }

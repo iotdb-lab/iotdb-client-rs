@@ -15,11 +15,11 @@
 
 [package]
 name = "iotdb-client-rs"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 license = "Apache-2.0"
 readme = "README.md"
-description = "Rust client for apache iotdb"
+description = "Rust client lirbray for Apache IoTDB"
 keywords = ["iotdb", "iotdb-client-rust"]
 repository = "https://github.com/manlge/iotdb-client-rs.git"
 

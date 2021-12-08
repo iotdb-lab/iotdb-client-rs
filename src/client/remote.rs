@@ -55,10 +55,11 @@ pub struct Config {
     pub username: String,
     pub password: String,
     pub timeout_ms: Option<i64>,
-    pub fetch_size: Option<i32>,
+    pub fetch_size: i32,
     pub timezone: Option<String>,
     pub enable_compression: bool,
     pub protocol_version: TSProtocolVersion,
+    pub is_align: bool,
 }
 
 impl Default for Config {
@@ -69,10 +70,11 @@ impl Default for Config {
             username: String::from("root"),
             password: String::from("root"),
             timeout_ms: Some(30000),
-            fetch_size: Some(1024),
+            fetch_size: 1000,
             timezone: Some(String::from("Asia/Shanghai")),
             enable_compression: false,
             protocol_version: TSProtocolVersion::IOTDB_SERVICE_PROTOCOL_V3,
+            is_align: true,
         }
     }
 }
@@ -84,7 +86,7 @@ pub struct RpcSession {
     client: TSIServiceSyncClient<Box<dyn TInputProtocol>, Box<dyn TOutputProtocol>>,
 }
 
-impl RpcSession {
+impl<'a> RpcSession {
     pub fn new(config: &Config) -> Result<Self, Box<dyn Error>> {
         let mut c = TTcpChannel::new();
         c.open(format!("{}:{}", config.host, config.port))?;
@@ -116,7 +118,7 @@ impl RpcSession {
     }
 }
 
-impl Iterator for RpcDataSet {
+impl<'a> Iterator for RpcDataSet<'a> {
     type Item = RowRecord;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -185,13 +187,14 @@ impl Iterator for RpcDataSet {
 
             self.row_index += 1;
 
-            let output_values: Vec<Value> = self
-                .column_names
-                .iter()
-                .map(|column_name| {
-                    values[*(self.column_name_index_map.get(column_name).unwrap()) as usize].clone()
-                })
-                .collect();
+            let mut output_values: Vec<Value> = Vec::with_capacity(self.get_column_names().len());
+            if !self.is_ignore_timestamp() {
+                output_values.push(Value::Int64(self.timestamp));
+            }
+
+            output_values.extend(self.column_names.iter().map(|column_name| {
+                values[*(self.column_name_index_map.get(column_name).unwrap()) as usize].clone()
+            }));
             Some(RowRecord {
                 timestamp: self.timestamp,
                 values: output_values,
@@ -202,8 +205,10 @@ impl Iterator for RpcDataSet {
     }
 }
 
-pub struct RpcDataSet {
-    // session: &'a RpcSession,
+pub struct RpcDataSet<'a> {
+    session: &'a mut RpcSession,
+    statement: String,
+    query_id: i64,
     is_ignore_time_stamp: Option<bool>,
     timestamp: i64,
     column_names: Vec<String>,
@@ -213,22 +218,113 @@ pub struct RpcDataSet {
     column_name_index_map: BTreeMap<String, i32>,
     bitmaps: Vec<u8>,
     row_index: usize,
+    closed: bool,
 }
 
-impl RpcDataSet {
+impl<'a> RpcDataSet<'a> {
     fn is_null(&self, column_index: usize, row_index: usize) -> bool {
         let bitmap = self.bitmaps[column_index];
         let shift = row_index % 8;
         return ((FLAG >> shift) & (bitmap & 0xff)) == 0;
     }
 
-    fn has_cached_results(&self) -> bool {
+    fn has_cached_results(&mut self) -> bool {
+        if self.closed {
+            return false;
+        }
+        if self.query_data_set.time.len() == 0 {
+            //Fetching result from iotdb server
+            match self
+                .session
+                .client
+                .fetch_results(super::rpc::TSFetchResultsReq {
+                    session_id: self.session.session_id.unwrap(),
+                    statement: self.statement.clone(),
+                    fetch_size: self.session.config.fetch_size,
+                    query_id: self.query_id,
+                    is_align: self.session.config.is_align,
+                    timeout: self.session.config.timeout_ms,
+                }) {
+                Ok(resp) => {
+                    if resp.status.code != SUCCESS_STATUS {
+                        if let Some(message) = resp.status.message {
+                            eprint!("{}", message);
+                        }
+
+                        return false;
+                    }
+                    if resp.has_result_set {
+                        //update query_data_set and release row_index
+                        self.query_data_set = resp.query_data_set.unwrap();
+                        self.row_index = 0;
+                    } else {
+                        //Auto close the dataset when no result.
+                        match self
+                            .session
+                            .client
+                            .close_operation(super::rpc::TSCloseOperationReq {
+                                session_id: self.session.session_id.unwrap(),
+                                query_id: Some(self.query_id),
+                                statement_id: Some(self.session.statement_id),
+                            }) {
+                            Ok(status) => {
+                                if status.code == SUCCESS_STATUS {
+                                    self.closed = true;
+                                    return false;
+                                } else {
+                                    if let Some(message) = status.message {
+                                        eprint!(
+                                            "An error occurred when closing dataset {}",
+                                            message
+                                        )
+                                    } else {
+                                        eprint!(
+                                            "An error occurred when closing dataset {:?}",
+                                            status
+                                        );
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                eprint!("An error occurred when closing dataset {:?}", err)
+                            }
+                        }
+                    }
+                }
+                Err(err) => {
+                    eprint!("An error occurred when fetch result: {}", err);
+                    return false;
+                }
+            }
+        }
+
         self.query_data_set.time.len() > 0
-        //todo process fetch_result
     }
 }
 
-impl DataSet for RpcDataSet {
+impl<'a> DataSet for RpcDataSet<'a> {
+    fn get_column_names(&self) -> Vec<String> {
+        if self.is_ignore_timestamp() {
+            self.column_names.clone()
+        } else {
+            //Include the time column
+            let mut column_names = vec![String::from("Time")];
+            column_names.extend(self.column_names.clone());
+            column_names
+        }
+    }
+
+    fn get_data_types(&self) -> Vec<TSDataType> {
+        if self.is_ignore_timestamp() {
+            self.data_types.clone()
+        } else {
+            //Include the time column data type
+            let mut column_types = vec![TSDataType::Int64];
+            column_types.extend(self.data_types.clone());
+            column_types
+        }
+    }
+
     fn is_ignore_timestamp(&self) -> bool {
         if let Some(v) = self.is_ignore_time_stamp {
             v
@@ -236,17 +332,13 @@ impl DataSet for RpcDataSet {
             false
         }
     }
-
-    fn get_column_names(&self) -> Vec<String> {
-        self.column_names.clone()
-    }
 }
 
 fn check_status(status: TSStatus) -> Result<(), Box<dyn Error>> {
     if status.code == SUCCESS_STATUS {
         Ok(())
     } else {
-        //todo check substatus
+        //todo: check substatus
         Err(status
             .message
             .unwrap_or(format!("Unknow, code: {}", status.code).to_string())
@@ -258,7 +350,7 @@ fn fire_closed_error() -> Result<(), Box<dyn Error>> {
     Err("Operation can't be performed, the session is closed.".into())
 }
 
-impl Session for RpcSession {
+impl<'a> Session<'a> for RpcSession {
     fn open(&mut self) -> Result<(), Box<dyn Error>> {
         let resp = self.client.open_session(TSOpenSessionReq::new(
             self.config.protocol_version,
@@ -497,10 +589,10 @@ impl Session for RpcSession {
     }
 
     fn execute_statement<T>(
-        &mut self,
+        &'a mut self,
         statement: &str,
         timeout_ms: T,
-    ) -> Result<Box<dyn DataSet>, Box<dyn Error>>
+    ) -> Result<Box<dyn 'a + DataSet>, Box<dyn Error>>
     where
         T: Into<Option<i64>>,
     {
@@ -509,7 +601,7 @@ impl Session for RpcSession {
                 session_id: session_id,
                 statement: statement.to_string(),
                 statement_id: self.statement_id,
-                fetch_size: self.config.fetch_size,
+                fetch_size: Some(self.config.fetch_size),
                 timeout: timeout_ms.into(),
                 enable_redirect_query: None,
                 jdbc_query: None,
@@ -546,7 +638,9 @@ impl Session for RpcSession {
                     }
 
                     return Ok(Box::new(RpcDataSet {
-                        // session: self,
+                        session: self,
+                        statement: statement.to_string(),
+                        query_id: resp.query_id.unwrap(),
                         timestamp: -1,
                         is_ignore_time_stamp: resp.ignore_time_stamp,
                         query_data_set: resp.query_data_set.unwrap(),
@@ -556,6 +650,7 @@ impl Session for RpcSession {
                         row_index: 0,
                         column_index_map: column_index_map,
                         column_name_index_map: column_name_index_map,
+                        closed: false,
                     }));
                 }
             } else {
@@ -570,10 +665,10 @@ impl Session for RpcSession {
     }
 
     fn execute_query_statement<T>(
-        &mut self,
+        &'a mut self,
         statement: &str,
         timeout_ms: T,
-    ) -> Result<Box<dyn DataSet>, Box<dyn Error>>
+    ) -> Result<Box<dyn 'a + DataSet>, Box<dyn Error>>
     where
         T: Into<Option<i64>>,
     {
@@ -582,7 +677,7 @@ impl Session for RpcSession {
                 session_id: session_id,
                 statement: statement.to_string(),
                 statement_id: self.statement_id,
-                fetch_size: self.config.fetch_size,
+                fetch_size: Some(self.config.fetch_size),
                 timeout: timeout_ms.into(),
                 enable_redirect_query: None,
                 jdbc_query: None,
@@ -618,7 +713,9 @@ impl Session for RpcSession {
                         .insert(*column_name_index_map.get(name).unwrap() as usize, index);
                 }
                 let dataset = RpcDataSet {
-                    // session: self,
+                    session: self,
+                    statement: statement.to_string(),
+                    query_id: resp.query_id.unwrap(),
                     timestamp: -1,
                     is_ignore_time_stamp: resp.ignore_time_stamp,
                     query_data_set: resp.query_data_set.unwrap(),
@@ -628,6 +725,7 @@ impl Session for RpcSession {
                     row_index: 0,
                     column_index_map: column_index_map,
                     column_name_index_map: column_name_index_map,
+                    closed: false,
                 };
                 return Ok(Box::new(dataset));
             } else {
@@ -873,18 +971,18 @@ impl Session for RpcSession {
     }
 
     fn execute_raw_data_query(
-        &mut self,
+        &'a mut self,
         paths: Vec<&str>,
         start_time: i64,
         end_time: i64,
-    ) -> Result<Box<dyn DataSet>, Box<dyn Error>> {
+    ) -> Result<Box<dyn 'a + DataSet>, Box<dyn Error>> {
         if let Some(session_id) = self.session_id {
             let resp = self
                 .client
                 .execute_raw_data_query(super::rpc::TSRawDataQueryReq {
                     session_id: session_id,
                     paths: paths.iter().map(|f| f.to_string()).collect(),
-                    fetch_size: self.config.fetch_size,
+                    fetch_size: Some(self.config.fetch_size),
                     start_time: start_time,
                     end_time: end_time,
                     statement_id: self.statement_id,
@@ -923,7 +1021,9 @@ impl Session for RpcSession {
                     }
 
                     return Ok(Box::new(RpcDataSet {
-                        // session: self,
+                        session: self,
+                        statement: "".to_string(),
+                        query_id: resp.query_id.unwrap(),
                         timestamp: -1,
                         is_ignore_time_stamp: resp.ignore_time_stamp,
                         query_data_set: query_data_set,
@@ -933,6 +1033,7 @@ impl Session for RpcSession {
                         row_index: 0,
                         column_index_map: column_index_map,
                         column_name_index_map: column_name_index_map,
+                        closed: false,
                     }));
                 } else {
                     Err("Did't get the result.".into())
@@ -949,9 +1050,9 @@ impl Session for RpcSession {
     }
 
     fn execute_update_statement(
-        &mut self,
+        &'a mut self,
         statement: &str,
-    ) -> Result<Option<Box<dyn DataSet>>, Box<dyn Error>> {
+    ) -> Result<Option<Box<dyn 'a + DataSet>>, Box<dyn Error>> {
         if let Some(session_id) = self.session_id {
             let resp = self
                 .client
@@ -959,7 +1060,7 @@ impl Session for RpcSession {
                     session_id: session_id,
                     statement: statement.to_string(),
                     statement_id: self.statement_id,
-                    fetch_size: self.config.fetch_size,
+                    fetch_size: Some(self.config.fetch_size),
                     timeout: self.config.timeout_ms,
                     enable_redirect_query: None,
                     jdbc_query: None,
@@ -996,7 +1097,9 @@ impl Session for RpcSession {
                     }
 
                     return Ok(Some(Box::new(RpcDataSet {
-                        // session: self,
+                        session: self,
+                        statement: statement.to_string(),
+                        query_id: resp.query_id.unwrap(),
                         timestamp: -1,
                         is_ignore_time_stamp: resp.ignore_time_stamp,
                         query_data_set: query_data_set,
@@ -1006,6 +1109,7 @@ impl Session for RpcSession {
                         row_index: 0,
                         column_index_map: column_index_map,
                         column_name_index_map: column_name_index_map,
+                        closed: false,
                     })));
                 } else {
                     Ok(None)
