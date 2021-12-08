@@ -60,7 +60,7 @@ Put this in your `Cargo.toml`:
 
 ```toml
 [dependencies]
-iotdb-client-rs="0.3.0"
+iotdb-client-rs="0.3.1"
 chrono="0.4.19"
 prettytable-rs="0.8.0"
 ```

@@ -17,7 +17,6 @@
 // under the License.
 //
 
-pub mod direct;
 pub mod remote;
 mod rpc;
 
@@ -107,13 +106,17 @@ impl Tablet {
         self.measurement_schemas.clone()
     }
 
-    pub fn add_row(&mut self, row: Vec<Value>, timestamp: i64) {
-        //todo: check
+    pub fn add_row(&mut self, row: Vec<Value>, timestamp: i64) -> Result<(), Box<dyn Error>> {
+        if row.len() != self.columns.len() {
+            return Err(format!("row values '{:?}' must macth columns", row).into());
+        }
+
         self.timestamps.push(timestamp);
         self.columns
             .iter_mut()
             .zip(row.iter())
             .for_each(|(column, value)| column.push(value.clone()));
+        Ok(())
     }
 
     pub fn get_timestamps_at(&self, row_index: usize) -> i64 {
