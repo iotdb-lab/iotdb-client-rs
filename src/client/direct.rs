@@ -228,22 +228,6 @@ impl<'a> Session<'a> for DirectSession {
         todo!()
     }
 
-    fn insert_tablet(
-        &mut self,
-        tablet: &super::Tablet,
-        sorted: bool,
-    ) -> Result<(), Box<dyn Error>> {
-        todo!()
-    }
-
-    fn insert_tablets(
-        &mut self,
-        tablets: Vec<&super::Tablet>,
-        sorted: bool,
-    ) -> Result<(), Box<dyn Error>> {
-        todo!()
-    }
-
     fn execute_batch_statement(&mut self, statemens: Vec<&str>) -> Result<(), Box<dyn Error>> {
         todo!()
     }
@@ -261,6 +245,14 @@ impl<'a> Session<'a> for DirectSession {
         &'a mut self,
         statement: &str,
     ) -> Result<Option<Box<dyn 'a + DataSet>>, Box<dyn Error>> {
+        todo!()
+    }
+
+    fn insert_tablet(&mut self, tablet: &super::Tablet) -> Result<(), Box<dyn Error>> {
+        todo!()
+    }
+
+    fn insert_tablets(&mut self, tablets: Vec<&super::Tablet>) -> Result<(), Box<dyn Error>> {
         todo!()
     }
 }

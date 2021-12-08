@@ -66,25 +66,6 @@ prettytable-rs="0.8.0"
 ```
 
 ```rust
-//
-// Licensed to the Apache Software Foundation (ASF) under one
-// or more contributor license agreements.  See the NOTICE file
-// distributed with this work for additional information
-// regarding copyright ownership.  The ASF licenses this file
-// to you under the Apache License, Version 2.0 (the
-// "License"); you may not use this file except in compliance
-// with the License.  You may obtain a copy of the License at
-//
-//  http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing,
-// software distributed under the License is distributed on an
-// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-// KIND, either express or implied.  See the License for the
-// specific language governing permissions and limitations
-// under the License.
-//
-
 use std::error::Error;
 use std::vec;
 
@@ -225,16 +206,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     //tablet
     let mut ts = Local::now().timestamp_millis();
 
-    let tablet1 = create_tablet(5, ts);
+    let mut tablet1 = create_tablet(5, ts);
+    tablet1.sort();
     ts += 5;
 
-    let tablet2 = create_tablet(10, ts);
+    let mut tablet2 = create_tablet(10, ts);
     ts += 10;
 
-    let tablet3 = create_tablet(2, ts);
+    let mut tablet3 = create_tablet(2, ts);
 
-    session.insert_tablet(&tablet1, true)?;
-    session.insert_tablets(vec![&tablet2, &tablet3], true)?;
+    tablet1.sort();
+    session.insert_tablet(&tablet1)?;
+
+    tablet2.sort();
+    tablet3.sort();
+    session.insert_tablets(vec![&tablet2, &tablet3])?;
 
     //delete_data
     session.insert_records_of_one_device(
@@ -246,7 +232,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
     session.delete_data(vec!["root.sg_rs.dev1.status"], 1, 16)?;
 
-    let mut dataset = session.execute_query_statement("select * from root.sg_rs.device2", None)?;
+    let dataset = session.execute_query_statement("select * from root.sg_rs.device2", None)?;
 
     // Get columns, column types and values from the data set
     // For example:

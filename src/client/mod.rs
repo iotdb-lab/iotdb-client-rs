@@ -90,15 +90,20 @@ impl Tablet {
         }
     }
 
-    pub fn sort(&self) {
-        todo!()
+    pub fn sort(&mut self) {
+        let permutation = permutation::sort(&self.timestamps[..]);
+
+        self.timestamps = permutation.apply_slice(&self.timestamps[..]);
+        for i in 0..self.columns.len() {
+            self.columns[i] = permutation.apply_slice(&self.columns[i][..]);
+        }
     }
 
-    pub fn device_id(&self) -> String {
+    pub fn get_device_id(&self) -> String {
         self.device_id.clone()
     }
 
-    pub fn measurement_schemas(&self) -> Vec<MeasurementSchema> {
+    pub fn get_measurement_schemas(&self) -> Vec<MeasurementSchema> {
         self.measurement_schemas.clone()
     }
 
@@ -111,8 +116,20 @@ impl Tablet {
             .for_each(|(column, value)| column.push(value.clone()));
     }
 
-    pub fn row_count(&self) -> usize {
+    pub fn get_timestamps_at(&self, row_index: usize) -> i64 {
+        return self.timestamps[row_index];
+    }
+
+    pub fn get_value_at(&self, colum_index: usize, row_index: usize) -> Value {
+        return self.columns[colum_index][row_index].clone();
+    }
+
+    pub fn get_row_count(&self) -> usize {
         self.timestamps.len()
+    }
+
+    pub fn get_column_count(&self) -> usize {
+        self.columns.len()
     }
 }
 
@@ -318,10 +335,9 @@ pub trait Session<'a> {
         timestamps: Vec<i64>,
     ) -> Result<(), Box<dyn std::error::Error>>;
 
-    fn insert_tablet(&mut self, tablet: &Tablet, sorted: bool) -> Result<(), Box<dyn Error>>;
+    fn insert_tablet(&mut self, tablet: &Tablet) -> Result<(), Box<dyn Error>>;
 
-    fn insert_tablets(&mut self, tablets: Vec<&Tablet>, sorted: bool)
-        -> Result<(), Box<dyn Error>>;
+    fn insert_tablets(&mut self, tablets: Vec<&Tablet>) -> Result<(), Box<dyn Error>>;
 
     fn execute_batch_statement(&mut self, statemens: Vec<&str>) -> Result<(), Box<dyn Error>>;
 

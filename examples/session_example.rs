@@ -157,16 +157,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     //tablet
     let mut ts = Local::now().timestamp_millis();
 
-    let tablet1 = create_tablet(5, ts);
+    let mut tablet1 = create_tablet(5, ts);
+    tablet1.sort();
     ts += 5;
 
-    let tablet2 = create_tablet(10, ts);
+    let mut tablet2 = create_tablet(10, ts);
     ts += 10;
 
-    let tablet3 = create_tablet(2, ts);
+    let mut tablet3 = create_tablet(2, ts);
 
-    session.insert_tablet(&tablet1, true)?;
-    session.insert_tablets(vec![&tablet2, &tablet3], true)?;
+    tablet1.sort();
+    session.insert_tablet(&tablet1)?;
+
+    tablet2.sort();
+    tablet3.sort();
+    session.insert_tablets(vec![&tablet2, &tablet3])?;
 
     //delete_data
     session.insert_records_of_one_device(

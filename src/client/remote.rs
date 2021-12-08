@@ -848,11 +848,7 @@ impl<'a> Session<'a> for RpcSession {
         }
     }
 
-    fn insert_tablet(
-        &mut self,
-        tablet: &super::Tablet,
-        sorted: bool,
-    ) -> Result<(), Box<dyn Error>> {
+    fn insert_tablet(&mut self, tablet: &super::Tablet) -> Result<(), Box<dyn Error>> {
         if let Some(session_id) = self.session_id {
             let mut timestamps_list: Vec<u8> = Vec::new();
             tablet
@@ -860,12 +856,9 @@ impl<'a> Session<'a> for RpcSession {
                 .iter()
                 .for_each(|ts| timestamps_list.append(&mut ts.to_be_bytes().to_vec()));
 
-            if !sorted {
-                // todo: tablet.sort();
-            }
             let status = self.client.insert_tablet(TSInsertTabletReq {
                 session_id: session_id,
-                prefix_path: tablet.device_id(),
+                prefix_path: tablet.get_device_id(),
                 measurements: tablet
                     .measurement_schemas
                     .iter()
@@ -874,7 +867,7 @@ impl<'a> Session<'a> for RpcSession {
                 values: tablet.into(),
                 timestamps: timestamps_list,
                 types: tablet
-                    .measurement_schemas()
+                    .get_measurement_schemas()
                     .iter()
                     .map(|measurement_schema| {
                         let t: i32;
@@ -882,7 +875,7 @@ impl<'a> Session<'a> for RpcSession {
                         t
                     })
                     .collect(),
-                size: tablet.row_count() as i32,
+                size: tablet.get_row_count() as i32,
                 is_aligned: Some(false),
             })?;
             check_status(status)
@@ -891,18 +884,11 @@ impl<'a> Session<'a> for RpcSession {
         }
     }
 
-    fn insert_tablets(
-        &mut self,
-        tablets: Vec<&super::Tablet>,
-        sorted: bool,
-    ) -> Result<(), Box<dyn Error>> {
+    fn insert_tablets(&mut self, tablets: Vec<&super::Tablet>) -> Result<(), Box<dyn Error>> {
         if let Some(session_id) = self.session_id {
-            if !sorted {
-                //todo: tablets.iter().for_each(|t| t.sort());
-            }
             let status = self.client.insert_tablets(TSInsertTabletsReq {
                 session_id: session_id,
-                prefix_paths: tablets.iter().map(|t| t.device_id()).collect(),
+                prefix_paths: tablets.iter().map(|t| t.get_device_id()).collect(),
                 measurements_list: tablets
                     .iter()
                     .map(|tablet| {
@@ -935,7 +921,7 @@ impl<'a> Session<'a> for RpcSession {
                     .iter()
                     .map(|tablet| {
                         tablet
-                            .measurement_schemas()
+                            .get_measurement_schemas()
                             .iter()
                             .map(|f| {
                                 let t: i32 = (&(*f).data_type).into();
@@ -946,7 +932,7 @@ impl<'a> Session<'a> for RpcSession {
                     .collect(),
                 size_list: tablets
                     .iter()
-                    .map(|tablet| tablet.row_count() as i32)
+                    .map(|tablet| tablet.get_row_count() as i32)
                     .collect(),
                 is_aligned: Some(false),
             })?;
