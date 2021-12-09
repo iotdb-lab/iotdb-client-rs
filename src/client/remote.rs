@@ -239,68 +239,76 @@ impl<'a> RpcDataSet<'a> {
         if self.closed {
             return false;
         }
-        if self.query_data_set.time.len() == 0 {
-            //Fetching result from iotdb server
-            match self
-                .session
-                .client
-                .fetch_results(super::rpc::TSFetchResultsReq {
-                    session_id: self.session.session_id.unwrap(),
-                    statement: self.statement.clone(),
-                    fetch_size: self.session.config.fetch_size,
-                    query_id: self.query_id,
-                    is_align: self.session.config.is_align,
-                    timeout: self.session.config.timeout_ms,
-                }) {
-                Ok(resp) => {
-                    let status = resp.status;
-                    match check_status(status) {
-                        Ok(_) => {
-                            if resp.has_result_set {
-                                //update query_data_set and release row_index
-                                self.query_data_set = resp.query_data_set.unwrap();
-                                self.row_index = 0;
-                            } else {
-                                //Auto close the dataset when no result.
-                                match self.session.client.close_operation(
-                                    super::rpc::TSCloseOperationReq {
-                                        session_id: self.session.session_id.unwrap(),
-                                        query_id: Some(self.query_id),
-                                        statement_id: Some(self.session.statement_id),
-                                    },
-                                ) {
-                                    Ok(status) => match check_status(status) {
-                                        Ok(_) => {
-                                            self.closed = true;
-                                            return false;
-                                        }
+        if let Some(session_id) = self.session.session_id {
+            if self.query_data_set.time.len() == 0 {
+                //Fetching result from iotdb server
+                match self
+                    .session
+                    .client
+                    .fetch_results(super::rpc::TSFetchResultsReq {
+                        session_id: session_id,
+                        statement: self.statement.clone(),
+                        fetch_size: self.session.config.fetch_size,
+                        query_id: self.query_id,
+                        is_align: self.session.config.is_align,
+                        timeout: self.session.config.timeout_ms,
+                    }) {
+                    Ok(resp) => {
+                        let status = resp.status;
+                        match check_status(status) {
+                            Ok(_) => {
+                                if resp.has_result_set {
+                                    //update query_data_set and release row_index
+                                    if let Some(query_data_set) = resp.query_data_set {
+                                        self.query_data_set = query_data_set;
+                                        self.row_index = 0;
+                                    }
+                                } else {
+                                    //Auto close the dataset when no result.
+                                    match self.session.client.close_operation(
+                                        super::rpc::TSCloseOperationReq {
+                                            session_id: session_id,
+                                            query_id: Some(self.query_id),
+                                            statement_id: Some(self.session.statement_id),
+                                        },
+                                    ) {
+                                        Ok(status) => match check_status(status) {
+                                            Ok(_) => {
+                                                self.closed = true;
+                                                return false;
+                                            }
+                                            Err(err) => {
+                                                eprint!(
+                                                    "An error occurred when closing dataset {:?}",
+                                                    err
+                                                )
+                                            }
+                                        },
                                         Err(err) => {
                                             eprint!(
                                                 "An error occurred when closing dataset {:?}",
                                                 err
                                             )
                                         }
-                                    },
-                                    Err(err) => {
-                                        eprint!("An error occurred when closing dataset {:?}", err)
                                     }
                                 }
                             }
-                        }
-                        Err(err) => {
-                            eprint!("An error occurred when fetch result: {}", err);
-                            return false;
+                            Err(err) => {
+                                eprint!("An error occurred when fetch result: {}", err);
+                                return false;
+                            }
                         }
                     }
-                }
-                Err(err) => {
-                    eprint!("An error occurred when fetch result: {}", err);
-                    return false;
+                    Err(err) => {
+                        eprint!("An error occurred when fetch result: {}", err);
+                        return false;
+                    }
                 }
             }
+            self.query_data_set.time.len() > 0
+        } else {
+            return false;
         }
-
-        self.query_data_set.time.len() > 0
     }
 }
 
@@ -624,49 +632,49 @@ impl<'a> Session<'a> for RpcSession {
             let code = status.code;
             if code == SUCCESS_STATUS {
                 {
-                    let column_names: Vec<String> = resp.columns.unwrap();
-
-                    let column_name_index_map = match resp.column_name_index_map {
-                        Some(map) => map,
-                        None => {
-                            let mut map: BTreeMap<String, i32> = BTreeMap::new();
-                            for (index, name) in column_names.iter().enumerate() {
-                                map.insert(name.to_string(), index as i32);
+                    if let (Some(column_names), Some(data_type_list)) =
+                        (resp.columns, resp.data_type_list)
+                    {
+                        let column_name_index_map = match resp.column_name_index_map {
+                            Some(map) => map,
+                            None => {
+                                let mut map: BTreeMap<String, i32> = BTreeMap::new();
+                                for (index, name) in column_names.iter().enumerate() {
+                                    map.insert(name.to_string(), index as i32);
+                                }
+                                map
                             }
-                            map
+                        };
+
+                        let data_types: Vec<TSDataType> =
+                            data_type_list.iter().map(|t| TSDataType::from(t)).collect();
+
+                        let mut column_index_map: HashMap<usize, usize> = HashMap::new();
+
+                        let column_count = column_names.len();
+                        for (index, name) in column_names.iter().enumerate() {
+                            column_index_map
+                                .insert(*column_name_index_map.get(name).unwrap() as usize, index);
                         }
-                    };
 
-                    let data_types: Vec<TSDataType> = resp
-                        .data_type_list
-                        .unwrap()
-                        .iter()
-                        .map(|t| TSDataType::from(t))
-                        .collect();
-
-                    let mut column_index_map: HashMap<usize, usize> = HashMap::new();
-
-                    let column_count = column_names.len();
-                    for (index, name) in column_names.iter().enumerate() {
-                        column_index_map
-                            .insert(*column_name_index_map.get(name).unwrap() as usize, index);
+                        return Ok(Box::new(RpcDataSet {
+                            session: self,
+                            statement: statement.to_string(),
+                            query_id: resp.query_id.unwrap(),
+                            timestamp: -1,
+                            is_ignore_time_stamp: resp.ignore_time_stamp,
+                            query_data_set: resp.query_data_set.unwrap(),
+                            column_names: column_names,
+                            data_types: data_types,
+                            bitmaps: vec![0_u8; column_count],
+                            row_index: 0,
+                            column_index_map: column_index_map,
+                            column_name_index_map: column_name_index_map,
+                            closed: false,
+                        }));
+                    } else {
+                        Err("Can't get resources on execute_statement".into())
                     }
-
-                    return Ok(Box::new(RpcDataSet {
-                        session: self,
-                        statement: statement.to_string(),
-                        query_id: resp.query_id.unwrap(),
-                        timestamp: -1,
-                        is_ignore_time_stamp: resp.ignore_time_stamp,
-                        query_data_set: resp.query_data_set.unwrap(),
-                        column_names: column_names,
-                        data_types: data_types,
-                        bitmaps: vec![0_u8; column_count],
-                        row_index: 0,
-                        column_index_map: column_index_map,
-                        column_name_index_map: column_name_index_map,
-                        closed: false,
-                    }));
                 }
             } else {
                 if let Err(e) = check_status(status) {

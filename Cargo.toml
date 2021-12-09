@@ -20,7 +20,7 @@ edition = "2021"
 license = "Apache-2.0"
 readme = "README.md"
 description = "Rust client library for Apache IoTDB"
-keywords = ["iotdb", "iotdb-client-rust"]
+keywords = ["iotdb", "iotdb-client-rust", "apache-iotdb"]
 repository = "https://github.com/manlge/iotdb-client-rs.git"
 
 [dependencies]

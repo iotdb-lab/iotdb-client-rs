@@ -77,7 +77,11 @@ use iotdb_client_rs::client::{MeasurementSchema, RowRecord, Session, Tablet, Val
 use iotdb_client_rs::protocal::{TSCompressionType, TSDataType, TSEncoding};
 use prettytable::{cell, Row, Table};
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() {
+    run().expect("failed to run session_example.")
+}
+
+fn run() -> Result<(), Box<dyn Error>> {
     let config = Config {
         host: String::from("127.0.0.1"),
         port: 6667,
@@ -85,24 +89,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         password: String::from("root"),
         ..Default::default()
     };
-
-    //rpc session
     let mut session = RpcSession::new(&config)?;
     session.open()?;
-
     let tz = session.get_time_zone()?;
     if tz != "Asia/Shanghai" {
         session.set_time_zone("Asia/Shanghai")?;
     }
-
     session.set_storage_group("root.ln1")?;
     session.delete_storage_group("root.ln1")?;
-
     session.set_storage_group("root.ln1")?;
     session.set_storage_group("root.ln2")?;
     session.delete_storage_groups(vec!["root.ln1", "root.ln2"])?;
-
-    //create_timeseries
     session.create_timeseries(
         "root.sg_rs.dev2.status",
         TSDataType::Float,
@@ -114,8 +111,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         None,
     )?;
     session.delete_timeseries(vec!["root.sg_rs.dev2.status"])?;
-
-    //insert_record
     session.insert_record(
         "root.sg_rs.dev5",
         vec!["online", "desc"],
@@ -124,8 +119,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         false,
     )?;
     session.delete_timeseries(vec!["root.sg_rs.dev5.online", "root.sg_rs.dev5.desc"])?;
-
-    //insert_records
     session.insert_records(
         vec!["root.sg_rs.dev1"],
         vec![vec![
@@ -154,8 +147,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         "root.sg_rs.dev1.description",
         "root.sg_rs.dev1.status",
     ])?;
-
-    //create_multi_timeseries
     session.create_multi_timeseries(
         vec!["root.sg3.dev1.temperature", "root.sg3.dev1.desc"],
         vec![TSDataType::Float, TSDataType::Text],
@@ -167,8 +158,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         None,
     )?;
     session.delete_timeseries(vec!["root.sg3.dev1.temperature", "root.sg3.dev1.desc"])?;
-
-    //delete_timeseries
     session.insert_string_record(
         "root.sg_rs.wf02.wt02",
         vec!["id", "location"],
@@ -180,8 +169,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         "root.sg_rs.wf02.wt02.id",
         "root.sg_rs.wf02.wt02.location",
     ])?;
-
-    //insert_records_of_one_device
     session.insert_records_of_one_device(
         "root.sg_rs.dev0",
         vec![
@@ -202,27 +189,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         ],
         false,
     )?;
-
-    //tablet
     let mut ts = Local::now().timestamp_millis();
-
     let mut tablet1 = create_tablet(5, ts);
     tablet1.sort();
     ts += 5;
-
     let mut tablet2 = create_tablet(10, ts);
     ts += 10;
-
     let mut tablet3 = create_tablet(2, ts);
-
     tablet1.sort();
     session.insert_tablet(&tablet1)?;
-
     tablet2.sort();
     tablet3.sort();
     session.insert_tablets(vec![&tablet2, &tablet3])?;
-
-    //delete_data
     session.insert_records_of_one_device(
         "root.sg_rs.dev1",
         vec![1, 16],
@@ -231,34 +209,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         true,
     )?;
     session.delete_data(vec!["root.sg_rs.dev1.status"], 1, 16)?;
-
     let dataset = session.execute_query_statement("select * from root.sg_rs.device2", None)?;
-
-    // Get columns, column types and values from the data set
-    // For example:
-    // dataset
-    //     .get_column_names()
-    //     .iter()
-    //     .for_each(|c| print!("{}\t", c));
-    // print!("\n");
-    // dataset
-    //     .get_data_types()
-    //     .iter()
-    //     .for_each(|c| print!("{:?}\t", c));
-    // print!("\n");
-    // dataset.for_each(|r| {
-    //     r.values.iter().for_each(|v| match v {
-    //         Value::Bool(v) => print!("{}\t", v),
-    //         Value::Int32(v) => print!("{}\t", v),
-    //         Value::Int64(v) => print!("{}\t", v),
-    //         Value::Float(v) => print!("{}\t", v),
-    //         Value::Double(v) => print!("{}\t", v),
-    //         Value::Text(v) => print!("{}\t", v),
-    //         Value::Null => print!("null\t"),
-    //     });
-    //     print!("\n");
-    // });
-
     let mut table = Table::new();
     table.set_titles(Row::new(
         dataset
@@ -273,10 +224,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         ));
     });
     table.printstd();
-
-    // let timestamps: Vec<i64> = dataset.map(|r| r.timestamp).collect();
-    // let count = dataset.count();
-
     let dataset = session.execute_statement("show timeseries", None)?;
     let mut table = Table::new();
     table.set_titles(Row::new(
@@ -292,14 +239,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         ));
     });
     table.printstd();
-
-    //execute_raw_data_query
     session.execute_batch_statement(vec![
         "insert into root.sg_rs.dev6(time,s5) values(1,true)",
         "insert into root.sg_rs.dev6(time,s5) values(2,true)",
         "insert into root.sg_rs.dev6(time,s5) values(3,true)",
     ])?;
-
     let dataset = session.execute_raw_data_query(
         vec![
             "root.sg_rs.device2.restart_count",
@@ -323,15 +267,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         ));
     });
     table.printstd();
-
     if let Some(dataset) =
         session.execute_update_statement("delete timeseries root.sg_rs.dev1.*")?
     {
         dataset.for_each(|r| println!("timestamp: {} {:?}", r.timestamp, r.values));
     }
-
     session.close()?;
-
     Ok(())
 }
 
