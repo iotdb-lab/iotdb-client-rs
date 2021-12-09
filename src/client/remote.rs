@@ -1005,9 +1005,9 @@ impl<'a> Session<'a> for RpcSession {
             let status = resp.status;
             let code = status.code;
             if code == SUCCESS_STATUS {
-                if let Some(query_data_set) = resp.query_data_set {
-                    let column_names: Vec<String> = resp.columns.unwrap();
-
+                if let (Some(query_data_set), Some(column_names), Some(data_types_list)) =
+                    (resp.query_data_set, resp.columns, resp.data_type_list)
+                {
                     let column_name_index_map = match resp.column_name_index_map {
                         Some(v) => v,
                         None => {
@@ -1019,9 +1019,7 @@ impl<'a> Session<'a> for RpcSession {
                         }
                     };
 
-                    let data_types: Vec<TSDataType> = resp
-                        .data_type_list
-                        .unwrap()
+                    let data_types: Vec<TSDataType> = data_types_list
                         .iter()
                         .map(|t| TSDataType::from(t))
                         .collect();
@@ -1082,9 +1080,9 @@ impl<'a> Session<'a> for RpcSession {
             let status = resp.status;
             let code = status.code;
             if code == SUCCESS_STATUS {
-                if let Some(query_data_set) = resp.query_data_set {
-                    let column_names: Vec<String> = resp.columns.unwrap();
-
+                if let (Some(query_data_set), Some(column_names), Some(data_type_list)) =
+                    (resp.query_data_set, resp.columns, resp.data_type_list)
+                {
                     let column_name_index_map = match resp.column_name_index_map {
                         Some(v) => v,
                         None => {
@@ -1096,12 +1094,8 @@ impl<'a> Session<'a> for RpcSession {
                         }
                     };
 
-                    let data_types: Vec<TSDataType> = resp
-                        .data_type_list
-                        .unwrap()
-                        .iter()
-                        .map(|t| TSDataType::from(t))
-                        .collect();
+                    let data_types: Vec<TSDataType> =
+                        data_type_list.iter().map(|t| TSDataType::from(t)).collect();
 
                     let mut column_index_map: HashMap<usize, usize> = HashMap::new();
 
