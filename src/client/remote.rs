@@ -35,7 +35,7 @@ use crate::client::rpc::{
     TSInsertStringRecordReq, TSInsertTabletReq, TSOpenSessionReq, TSProtocolVersion,
     TTSIServiceSyncClient,
 };
-use crate::protocal::{TSDataType, FLAG, SUCCESS_STATUS};
+use crate::protocal::{TSDataType, FLAG, MULTIPLE_ERROR, NEED_REDIRECTION, SUCCESS_STATUS};
 
 use super::rpc::{
     TSDeleteDataReq, TSExecuteStatementReq, TSInsertRecordReq, TSInsertRecordsOfOneDeviceReq,
@@ -88,33 +88,40 @@ pub struct RpcSession {
 
 impl<'a> RpcSession {
     pub fn new(config: &Config) -> Result<Self, Box<dyn Error>> {
-        let mut c = TTcpChannel::new();
-        c.open(format!("{}:{}", config.host, config.port))?;
-        let (i_chan, o_chan) = c.split()?;
+        let mut tcp_channel = TTcpChannel::new();
+        let endpint = format!("{}:{}", config.host, config.port);
+        match tcp_channel.open(&endpint) {
+            Ok(_) => {
+                let (i_chan, o_chan) = tcp_channel.split()?;
 
-        let (i_prot, o_prot) = (
-            TFramedReadTransport::new(i_chan),
-            TFramedWriteTransport::new(o_chan),
-        );
+                let (i_prot, o_prot) = (
+                    TFramedReadTransport::new(i_chan),
+                    TFramedWriteTransport::new(o_chan),
+                );
 
-        let (input_protocol, output_protocol): (Box<dyn TInputProtocol>, Box<dyn TOutputProtocol>) =
-            match config.enable_compression {
-                false => (
-                    Box::new(TBinaryInputProtocol::new(i_prot, true)),
-                    Box::new(TBinaryOutputProtocol::new(o_prot, true)),
-                ),
-                true => (
-                    Box::new(TCompactInputProtocol::new(i_prot)),
-                    Box::new(TCompactOutputProtocol::new(o_prot)),
-                ),
-            };
+                let (input_protocol, output_protocol): (
+                    Box<dyn TInputProtocol>,
+                    Box<dyn TOutputProtocol>,
+                ) = match config.enable_compression {
+                    false => (
+                        Box::new(TBinaryInputProtocol::new(i_prot, true)),
+                        Box::new(TBinaryOutputProtocol::new(o_prot, true)),
+                    ),
+                    true => (
+                        Box::new(TCompactInputProtocol::new(i_prot)),
+                        Box::new(TCompactOutputProtocol::new(o_prot)),
+                    ),
+                };
 
-        Ok(Self {
-            config: config.clone(),
-            session_id: None,
-            statement_id: -1,
-            client: TSIServiceSyncClient::new(input_protocol, output_protocol),
-        })
+                Ok(Self {
+                    config: config.clone(),
+                    session_id: None,
+                    statement_id: -1,
+                    client: TSIServiceSyncClient::new(input_protocol, output_protocol),
+                })
+            }
+            Err(err) => Err(format!("failed to connect to {}, {:?}", endpint, err).into()),
+        }
     }
 }
 
@@ -246,48 +253,43 @@ impl<'a> RpcDataSet<'a> {
                     timeout: self.session.config.timeout_ms,
                 }) {
                 Ok(resp) => {
-                    if resp.status.code != SUCCESS_STATUS {
-                        if let Some(message) = resp.status.message {
-                            eprint!("{}", message);
-                        }
-
-                        return false;
-                    }
-                    if resp.has_result_set {
-                        //update query_data_set and release row_index
-                        self.query_data_set = resp.query_data_set.unwrap();
-                        self.row_index = 0;
-                    } else {
-                        //Auto close the dataset when no result.
-                        match self
-                            .session
-                            .client
-                            .close_operation(super::rpc::TSCloseOperationReq {
-                                session_id: self.session.session_id.unwrap(),
-                                query_id: Some(self.query_id),
-                                statement_id: Some(self.session.statement_id),
-                            }) {
-                            Ok(status) => {
-                                if status.code == SUCCESS_STATUS {
-                                    self.closed = true;
-                                    return false;
-                                } else {
-                                    if let Some(message) = status.message {
-                                        eprint!(
-                                            "An error occurred when closing dataset {}",
-                                            message
-                                        )
-                                    } else {
-                                        eprint!(
-                                            "An error occurred when closing dataset {:?}",
-                                            status
-                                        );
+                    let status = resp.status;
+                    match check_status(status) {
+                        Ok(_) => {
+                            if resp.has_result_set {
+                                //update query_data_set and release row_index
+                                self.query_data_set = resp.query_data_set.unwrap();
+                                self.row_index = 0;
+                            } else {
+                                //Auto close the dataset when no result.
+                                match self.session.client.close_operation(
+                                    super::rpc::TSCloseOperationReq {
+                                        session_id: self.session.session_id.unwrap(),
+                                        query_id: Some(self.query_id),
+                                        statement_id: Some(self.session.statement_id),
+                                    },
+                                ) {
+                                    Ok(status) => match check_status(status) {
+                                        Ok(_) => {
+                                            self.closed = true;
+                                            return false;
+                                        }
+                                        Err(err) => {
+                                            eprint!(
+                                                "An error occurred when closing dataset {:?}",
+                                                err
+                                            )
+                                        }
+                                    },
+                                    Err(err) => {
+                                        eprint!("An error occurred when closing dataset {:?}", err)
                                     }
                                 }
                             }
-                            Err(err) => {
-                                eprint!("An error occurred when closing dataset {:?}", err)
-                            }
+                        }
+                        Err(err) => {
+                            eprint!("An error occurred when fetch result: {}", err);
+                            return false;
                         }
                     }
                 }
@@ -335,14 +337,33 @@ impl<'a> DataSet for RpcDataSet<'a> {
 }
 
 fn check_status(status: TSStatus) -> Result<(), Box<dyn Error>> {
-    if status.code == SUCCESS_STATUS {
-        Ok(())
-    } else {
-        //todo: check substatus
-        Err(status
-            .message
-            .unwrap_or(format!("Unknow, code: {}", status.code).to_string())
-            .into())
+    match status.code {
+        SUCCESS_STATUS | NEED_REDIRECTION => Ok(()),
+        MULTIPLE_ERROR => {
+            let mut messges = String::new();
+            if let Some(sub_status) = status.sub_status {
+                for s in sub_status {
+                    if s.code != SUCCESS_STATUS && s.code != NEED_REDIRECTION {
+                        if let Some(msg) = s.message {
+                            messges.push_str(format!("Code: {}, {}", s.code, msg).as_str());
+                            messges.push(';');
+                        }
+                    }
+                }
+            }
+            if messges.len() > 0 {
+                Err(messges.into())
+            } else {
+                Ok(())
+            }
+        }
+        _ => {
+            if let Some(message) = status.message {
+                Err(format!("code: {}, {}", status.code, message).into())
+            } else {
+                Err(format!("code: {}", status.code).into())
+            }
+        }
     }
 }
 
@@ -362,16 +383,13 @@ impl<'a> Session<'a> for RpcSession {
             self.config.password.clone(),
             None,
         ))?;
-        if resp.status.code == SUCCESS_STATUS {
-            self.session_id = resp.session_id;
-
-            if let Some(session_id) = self.session_id {
-                self.statement_id = self.client.request_statement_id(session_id)?;
+        let status = resp.status;
+        match check_status(status) {
+            Ok(_) => {
+                self.session_id = resp.session_id;
+                Ok(())
             }
-
-            Ok(())
-        } else {
-            Err(resp.status.message.unwrap().into())
+            Err(err) => Err(err),
         }
     }
 
@@ -564,13 +582,9 @@ impl<'a> Session<'a> for RpcSession {
             let resp = self.client.get_time_zone(session_id)?;
             let status = resp.status;
 
-            if status.code == SUCCESS_STATUS {
-                Ok(resp.time_zone)
-            } else {
-                Err(status
-                    .message
-                    .unwrap_or(format!("Unknow, code: {}", status.code).to_string())
-                    .into())
+            match check_status(status) {
+                Ok(_) => Ok(resp.time_zone),
+                Err(err) => Err(err),
             }
         } else {
             Err("Operation can't be performed, the session is closed.".into())
@@ -607,7 +621,8 @@ impl<'a> Session<'a> for RpcSession {
                 jdbc_query: None,
             })?;
             let status = resp.status;
-            if status.code == SUCCESS_STATUS {
+            let code = status.code;
+            if code == SUCCESS_STATUS {
                 {
                     let column_names: Vec<String> = resp.columns.unwrap();
 
@@ -654,10 +669,11 @@ impl<'a> Session<'a> for RpcSession {
                     }));
                 }
             } else {
-                return Err(status
-                    .message
-                    .unwrap_or(format!("Unknow, code: {}", status.code).to_string())
-                    .into());
+                if let Err(e) = check_status(status) {
+                    return Err(e);
+                } else {
+                    return Err(format!("Unknow, code: {}", code).to_string().into());
+                }
             }
         } else {
             Err("Operation can't be performed, the session is closed.".into())
@@ -683,8 +699,8 @@ impl<'a> Session<'a> for RpcSession {
                 jdbc_query: None,
             })?;
             let status = resp.status;
-
-            if status.code == SUCCESS_STATUS {
+            let code = status.code;
+            if code == SUCCESS_STATUS {
                 let column_names: Vec<String> = resp.columns.unwrap();
 
                 let column_name_index_map = match resp.column_name_index_map {
@@ -729,10 +745,10 @@ impl<'a> Session<'a> for RpcSession {
                 };
                 return Ok(Box::new(dataset));
             } else {
-                return Err(status
-                    .message
-                    .unwrap_or(format!("Unknow, code: {}", status.code).to_string())
-                    .into());
+                match check_status(status) {
+                    Ok(_) => Err(format!("Unknow, code: {}", code).into()),
+                    Err(err) => Err(err),
+                }
             }
         } else {
             Err("Operation can't be performed, the session is closed.".into())
@@ -987,7 +1003,8 @@ impl<'a> Session<'a> for RpcSession {
                     jdbc_query: None,
                 })?;
             let status = resp.status;
-            if status.code == SUCCESS_STATUS {
+            let code = status.code;
+            if code == SUCCESS_STATUS {
                 if let Some(query_data_set) = resp.query_data_set {
                     let column_names: Vec<String> = resp.columns.unwrap();
 
@@ -1036,10 +1053,10 @@ impl<'a> Session<'a> for RpcSession {
                     Err("Did't get the result.".into())
                 }
             } else {
-                Err(status
-                    .message
-                    .unwrap_or(format!("Unknow, code: {}", status.code).to_string())
-                    .into())
+                match check_status(status) {
+                    Ok(_) => Err(format!("Unknow, code: {}", code).into()),
+                    Err(err) => Err(err),
+                }
             }
         } else {
             Err("Operation can't be performed, the session is closed.".into())
@@ -1063,7 +1080,8 @@ impl<'a> Session<'a> for RpcSession {
                     jdbc_query: None,
                 })?;
             let status = resp.status;
-            if status.code == SUCCESS_STATUS {
+            let code = status.code;
+            if code == SUCCESS_STATUS {
                 if let Some(query_data_set) = resp.query_data_set {
                     let column_names: Vec<String> = resp.columns.unwrap();
 
@@ -1112,10 +1130,10 @@ impl<'a> Session<'a> for RpcSession {
                     Ok(None)
                 }
             } else {
-                Err(status
-                    .message
-                    .unwrap_or(format!("Unknow, code: {}", status.code).to_string())
-                    .into())
+                match check_status(status) {
+                    Ok(_) => Err(format!("Unknow, code: {}", code).into()),
+                    Err(err) => Err(err),
+                }
             }
         } else {
             Err("Operation can't be performed, the session is closed.".into())

@@ -244,6 +244,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     });
     table.printstd();
 
+    //execute_raw_data_query
     session.execute_batch_statement(vec![
         "insert into root.sg_rs.dev6(time,s5) values(1,true)",
         "insert into root.sg_rs.dev6(time,s5) values(2,true)",
@@ -272,7 +273,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             r.values.iter().map(|v: &Value| cell!(v)).collect(),
         ));
     });
-    //execute_raw_data_query
     table.printstd();
 
     if let Some(dataset) =
@@ -336,17 +336,19 @@ fn create_tablet(row_count: i32, start_timestamp: i64) -> Tablet {
     );
     (0..row_count).for_each(|row| {
         let ts = start_timestamp + row as i64;
-        tablet.add_row(
-            vec![
-                Value::Bool(ts % 2 == 0),
-                Value::Int32(row),
-                Value::Int64(row as i64),
-                Value::Float(row as f32 + 0.1),
-                Value::Double(row as f64 + 0.2),
-                Value::Text(format!("ts: {}", ts).to_string()),
-            ],
-            ts,
-        );
+        tablet
+            .add_row(
+                vec![
+                    Value::Bool(ts % 2 == 0),
+                    Value::Int32(row),
+                    Value::Int64(row as i64),
+                    Value::Float(row as f32 + 0.1),
+                    Value::Double(row as f64 + 0.2),
+                    Value::Text(format!("ts: {}", ts).to_string()),
+                ],
+                ts,
+            )
+            .unwrap_or_else(|err| eprintln!("Add row failed, reason '{}'", err));
     });
     tablet
 }
