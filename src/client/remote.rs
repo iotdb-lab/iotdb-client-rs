@@ -1133,3 +1133,27 @@ impl<'a> Session<'a> for RpcSession {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::{Result, Session};
+    use std::option::Option::None;
+    #[test]
+    fn test_session() -> Result<()> {
+        assert_eq!(1, 1);
+        let config = Config {
+            host: String::from("127.0.0.1"),
+            port: 6667,
+            username: String::from("root"),
+            password: String::from("root"),
+            ..Default::default()
+        };
+        let mut session = RpcSession::new(&config)?;
+        session.open()?;
+        assert_ne!(None, session.session_id.to_owned());
+        session.close()?;
+        assert_eq!(None, session.session_id.to_owned());
+        Ok(())
+    }
+}
