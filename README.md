@@ -60,20 +60,19 @@ Put this in your `Cargo.toml`:
 
 ```toml
 [dependencies]
-iotdb-client-rs="0.3.2"
+iotdb-client-rs="0.3.3"
 chrono="0.4.19"
 prettytable-rs="0.8.0"
 ```
 
 ```rust
-use std::error::Error;
 use std::vec;
 
 use chrono;
 
 use chrono::Local;
 use iotdb_client_rs::client::remote::{Config, RpcSession};
-use iotdb_client_rs::client::{MeasurementSchema, RowRecord, Session, Tablet, Value};
+use iotdb_client_rs::client::{MeasurementSchema, Result, RowRecord, Session, Tablet, Value};
 use iotdb_client_rs::protocal::{TSCompressionType, TSDataType, TSEncoding};
 use prettytable::{cell, Row, Table};
 
@@ -81,7 +80,7 @@ fn main() {
     run().expect("failed to run session_example.")
 }
 
-fn run() -> Result<(), Box<dyn Error>> {
+fn run() -> Result<()> {
     let config = Config {
         host: String::from("127.0.0.1"),
         port: 6667,

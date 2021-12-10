@@ -18,7 +18,6 @@
 //
 
 use std::collections::{BTreeMap, HashMap};
-use std::error::Error;
 use std::vec;
 use thrift::transport::TIoChannel;
 
@@ -45,7 +44,7 @@ use super::{
     rpc::{TSCloseSessionReq, TSStatus},
     RowRecord,
 };
-use super::{DataSet, Dictionary, Session, Value};
+use super::{DataSet, Dictionary, Result, Session, Value};
 
 #[derive(Debug, Clone)]
 
@@ -87,7 +86,7 @@ pub struct RpcSession {
 }
 
 impl<'a> RpcSession {
-    pub fn new(config: &Config) -> Result<Self, Box<dyn Error>> {
+    pub fn new(config: &Config) -> Result<Self> {
         let mut tcp_channel = TTcpChannel::new();
         let endpint = format!("{}:{}", config.host, config.port);
         match tcp_channel.open(&endpint) {
@@ -344,7 +343,7 @@ impl<'a> DataSet for RpcDataSet<'a> {
     }
 }
 
-fn check_status(status: TSStatus) -> Result<(), Box<dyn Error>> {
+fn check_status(status: TSStatus) -> Result<()> {
     match status.code {
         SUCCESS_STATUS | NEED_REDIRECTION => Ok(()),
         MULTIPLE_ERROR => {
@@ -375,12 +374,12 @@ fn check_status(status: TSStatus) -> Result<(), Box<dyn Error>> {
     }
 }
 
-fn fire_closed_error() -> Result<(), Box<dyn Error>> {
+fn fire_closed_error() -> Result<()> {
     Err("Operation can't be performed, the session is closed.".into())
 }
 
 impl<'a> Session<'a> for RpcSession {
-    fn open(&mut self) -> Result<(), Box<dyn Error>> {
+    fn open(&mut self) -> Result<()> {
         let resp = self.client.open_session(TSOpenSessionReq::new(
             self.config.protocol_version,
             self.config
@@ -401,7 +400,7 @@ impl<'a> Session<'a> for RpcSession {
         }
     }
 
-    fn close(&mut self) -> Result<(), Box<dyn Error>> {
+    fn close(&mut self) -> Result<()> {
         if let Some(session_id) = self.session_id {
             let status = self
                 .client
@@ -413,7 +412,7 @@ impl<'a> Session<'a> for RpcSession {
         }
     }
 
-    fn set_storage_group(&mut self, storage_group_id: &str) -> Result<(), Box<dyn Error>> {
+    fn set_storage_group(&mut self, storage_group_id: &str) -> Result<()> {
         if let Some(session_id) = self.session_id {
             let status = self
                 .client
@@ -424,14 +423,11 @@ impl<'a> Session<'a> for RpcSession {
         }
     }
 
-    fn delete_storage_group(&mut self, storage_group_id: &str) -> Result<(), Box<dyn Error>> {
+    fn delete_storage_group(&mut self, storage_group_id: &str) -> Result<()> {
         self.delete_storage_groups(vec![storage_group_id])
     }
 
-    fn delete_storage_groups(
-        &mut self,
-        storage_group_ids: Vec<&str>,
-    ) -> Result<(), Box<dyn Error>> {
+    fn delete_storage_groups(&mut self, storage_group_ids: Vec<&str>) -> Result<()> {
         if let Some(session_id) = self.session_id {
             let status = self.client.delete_storage_groups(
                 session_id,
@@ -453,7 +449,7 @@ impl<'a> Session<'a> for RpcSession {
         attributes: T,
         tags: T,
         measurement_alias: Option<String>,
-    ) -> Result<(), Box<dyn Error>>
+    ) -> Result<()>
     where
         T: Into<Option<Dictionary>>,
     {
@@ -485,7 +481,7 @@ impl<'a> Session<'a> for RpcSession {
         attributes_list: T,
         tags_list: T,
         measurement_alias_list: Option<Vec<String>>,
-    ) -> Result<(), Box<dyn Error>>
+    ) -> Result<()>
     where
         T: Into<Option<Vec<Dictionary>>>,
     {
@@ -527,7 +523,7 @@ impl<'a> Session<'a> for RpcSession {
         }
     }
 
-    fn delete_timeseries(&mut self, paths: Vec<&str>) -> Result<(), Box<dyn Error>> {
+    fn delete_timeseries(&mut self, paths: Vec<&str>) -> Result<()> {
         if let Some(session_id) = self.session_id {
             let status = self
                 .client
@@ -538,12 +534,7 @@ impl<'a> Session<'a> for RpcSession {
         }
     }
 
-    fn delete_data(
-        &mut self,
-        paths: Vec<&str>,
-        start_time: i64,
-        end_time: i64,
-    ) -> Result<(), Box<dyn Error>> {
+    fn delete_data(&mut self, paths: Vec<&str>, start_time: i64, end_time: i64) -> Result<()> {
         if let Some(session_id) = self.session_id {
             let status = self.client.delete_data(TSDeleteDataReq::new(
                 session_id,
@@ -564,7 +555,7 @@ impl<'a> Session<'a> for RpcSession {
         values: Vec<&str>,
         timestamp: i64,
         is_aligned: T,
-    ) -> Result<(), Box<dyn Error>>
+    ) -> Result<()>
     where
         T: Into<Option<bool>>,
     {
@@ -585,7 +576,7 @@ impl<'a> Session<'a> for RpcSession {
         }
     }
 
-    fn get_time_zone(&mut self) -> Result<String, Box<dyn Error>> {
+    fn get_time_zone(&mut self) -> Result<String> {
         if let Some(session_id) = self.session_id {
             let resp = self.client.get_time_zone(session_id)?;
             let status = resp.status;
@@ -599,7 +590,7 @@ impl<'a> Session<'a> for RpcSession {
         }
     }
 
-    fn set_time_zone(&mut self, time_zone: &str) -> Result<(), Box<dyn Error>> {
+    fn set_time_zone(&mut self, time_zone: &str) -> Result<()> {
         if let Some(session_id) = self.session_id {
             let status = self
                 .client
@@ -614,7 +605,7 @@ impl<'a> Session<'a> for RpcSession {
         &'a mut self,
         statement: &str,
         timeout_ms: T,
-    ) -> Result<Box<dyn 'a + DataSet>, Box<dyn Error>>
+    ) -> Result<Box<dyn 'a + DataSet>>
     where
         T: Into<Option<i64>>,
     {
@@ -692,7 +683,7 @@ impl<'a> Session<'a> for RpcSession {
         &'a mut self,
         statement: &str,
         timeout_ms: T,
-    ) -> Result<Box<dyn 'a + DataSet>, Box<dyn Error>>
+    ) -> Result<Box<dyn 'a + DataSet>>
     where
         T: Into<Option<i64>>,
     {
@@ -770,7 +761,7 @@ impl<'a> Session<'a> for RpcSession {
         values: Vec<Value>,
         timestamp: i64,
         is_aligned: T,
-    ) -> Result<(), Box<dyn Error>>
+    ) -> Result<()>
     where
         T: Into<Option<bool>>,
     {
@@ -801,7 +792,7 @@ impl<'a> Session<'a> for RpcSession {
         measurements: Vec<Vec<&str>>,
         values: Vec<Vec<super::Value>>,
         sorted: bool,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<()> {
         let mut sorted_timestamps = timestamps;
         let mut sorted_measurements = measurements;
         let mut sorted_values = values;
@@ -850,7 +841,7 @@ impl<'a> Session<'a> for RpcSession {
         measurements: Vec<Vec<&str>>,
         values: Vec<Vec<super::Value>>,
         timestamps: Vec<i64>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<()> {
         if let Some(session_id) = self.session_id {
             let values_list = values
                 .iter()
@@ -883,7 +874,7 @@ impl<'a> Session<'a> for RpcSession {
         }
     }
 
-    fn insert_tablet(&mut self, tablet: &super::Tablet) -> Result<(), Box<dyn Error>> {
+    fn insert_tablet(&mut self, tablet: &super::Tablet) -> Result<()> {
         if let Some(session_id) = self.session_id {
             let mut timestamps_list: Vec<u8> = Vec::new();
             tablet
@@ -919,7 +910,7 @@ impl<'a> Session<'a> for RpcSession {
         }
     }
 
-    fn insert_tablets(&mut self, tablets: Vec<&super::Tablet>) -> Result<(), Box<dyn Error>> {
+    fn insert_tablets(&mut self, tablets: Vec<&super::Tablet>) -> Result<()> {
         if let Some(session_id) = self.session_id {
             let status = self.client.insert_tablets(TSInsertTabletsReq {
                 session_id: session_id,
@@ -977,7 +968,7 @@ impl<'a> Session<'a> for RpcSession {
         }
     }
 
-    fn execute_batch_statement(&mut self, statemens: Vec<&str>) -> Result<(), Box<dyn Error>> {
+    fn execute_batch_statement(&mut self, statemens: Vec<&str>) -> Result<()> {
         if let Some(session_id) = self.session_id {
             let status =
                 self.client
@@ -996,7 +987,7 @@ impl<'a> Session<'a> for RpcSession {
         paths: Vec<&str>,
         start_time: i64,
         end_time: i64,
-    ) -> Result<Box<dyn 'a + DataSet>, Box<dyn Error>> {
+    ) -> Result<Box<dyn 'a + DataSet>> {
         if let Some(session_id) = self.session_id {
             let resp = self
                 .client
@@ -1072,7 +1063,7 @@ impl<'a> Session<'a> for RpcSession {
     fn execute_update_statement(
         &'a mut self,
         statement: &str,
-    ) -> Result<Option<Box<dyn 'a + DataSet>>, Box<dyn Error>> {
+    ) -> Result<Option<Box<dyn 'a + DataSet>>> {
         if let Some(session_id) = self.session_id {
             let resp = self
                 .client

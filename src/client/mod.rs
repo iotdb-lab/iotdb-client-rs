@@ -24,6 +24,8 @@ use crate::protocal::{TSCompressionType, TSDataType, TSEncoding};
 use std::collections::BTreeMap;
 use std::error::Error;
 
+pub type Result<T> = core::result::Result<T, Box<dyn Error>>;
+
 pub type Dictionary = BTreeMap<String, String>;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -52,7 +54,6 @@ impl MeasurementSchema {
         }
     }
 }
-
 #[derive(Debug, Clone)]
 pub struct Tablet {
     device_id: String,
@@ -106,7 +107,7 @@ impl Tablet {
         self.measurement_schemas.clone()
     }
 
-    pub fn add_row(&mut self, row: Vec<Value>, timestamp: i64) -> Result<(), Box<dyn Error>> {
+    pub fn add_row(&mut self, row: Vec<Value>, timestamp: i64) -> Result<()> {
         if row.len() != self.columns.len() {
             return Err(format!("row values '{:?}' must macth columns", row).into());
         }
@@ -231,16 +232,15 @@ pub trait DataSet: Iterator<Item = RowRecord> {
 }
 
 pub trait Session<'a> {
-    fn open(&mut self) -> Result<(), Box<dyn std::error::Error>>;
+    fn open(&mut self) -> Result<()>;
 
-    fn close(&mut self) -> Result<(), Box<dyn std::error::Error>>;
+    fn close(&mut self) -> Result<()>;
 
-    fn set_storage_group(&mut self, storage_group_id: &str) -> Result<(), Box<dyn Error>>;
+    fn set_storage_group(&mut self, storage_group_id: &str) -> Result<()>;
 
-    fn delete_storage_group(&mut self, storage_group_id: &str) -> Result<(), Box<dyn Error>>;
+    fn delete_storage_group(&mut self, storage_group_id: &str) -> Result<()>;
 
-    fn delete_storage_groups(&mut self, storage_group_ids: Vec<&str>)
-        -> Result<(), Box<dyn Error>>;
+    fn delete_storage_groups(&mut self, storage_group_ids: Vec<&str>) -> Result<()>;
 
     fn create_timeseries<T>(
         &mut self,
@@ -252,7 +252,7 @@ pub trait Session<'a> {
         attributes: T,
         tags: T,
         measurement_alias: Option<String>,
-    ) -> Result<(), Box<dyn Error>>
+    ) -> Result<()>
     where
         T: Into<Option<Dictionary>>;
 
@@ -266,18 +266,13 @@ pub trait Session<'a> {
         attributes_list: T,
         tags_list: T,
         measurement_alias_list: Option<Vec<String>>,
-    ) -> Result<(), Box<dyn Error>>
+    ) -> Result<()>
     where
         T: Into<Option<Vec<Dictionary>>>;
 
-    fn delete_timeseries(&mut self, paths: Vec<&str>) -> Result<(), Box<dyn Error>>;
+    fn delete_timeseries(&mut self, paths: Vec<&str>) -> Result<()>;
 
-    fn delete_data(
-        &mut self,
-        paths: Vec<&str>,
-        start_time: i64,
-        end_time: i64,
-    ) -> Result<(), Box<dyn Error>>;
+    fn delete_data(&mut self, paths: Vec<&str>, start_time: i64, end_time: i64) -> Result<()>;
 
     fn insert_string_record<T>(
         &mut self,
@@ -286,19 +281,19 @@ pub trait Session<'a> {
         values: Vec<&str>,
         timestamp: i64,
         is_aligned: T,
-    ) -> Result<(), Box<dyn Error>>
+    ) -> Result<()>
     where
         T: Into<Option<bool>>;
 
-    fn get_time_zone(&mut self) -> Result<String, Box<dyn Error>>;
+    fn get_time_zone(&mut self) -> Result<String>;
 
-    fn set_time_zone(&mut self, time_zone: &str) -> Result<(), Box<dyn Error>>;
+    fn set_time_zone(&mut self, time_zone: &str) -> Result<()>;
 
     fn execute_statement<T>(
         &'a mut self,
         statement: &str,
         timeout_ms: T,
-    ) -> Result<Box<dyn 'a + DataSet>, Box<dyn Error>>
+    ) -> Result<Box<dyn 'a + DataSet>>
     where
         T: Into<Option<i64>>;
 
@@ -306,7 +301,7 @@ pub trait Session<'a> {
         &'a mut self,
         statement: &str,
         timeout_ms: T,
-    ) -> Result<Box<dyn 'a + DataSet>, Box<dyn Error>>
+    ) -> Result<Box<dyn 'a + DataSet>>
     where
         T: Into<Option<i64>>;
 
@@ -317,7 +312,7 @@ pub trait Session<'a> {
         values: Vec<Value>,
         timestamp: i64,
         is_aligned: T,
-    ) -> Result<(), Box<dyn Error>>
+    ) -> Result<()>
     where
         T: Into<Option<bool>>;
 
@@ -328,7 +323,7 @@ pub trait Session<'a> {
         measurements: Vec<Vec<&str>>,
         values: Vec<Vec<Value>>,
         sorted: bool,
-    ) -> Result<(), Box<dyn Error>>;
+    ) -> Result<()>;
 
     fn insert_records(
         &mut self,
@@ -336,23 +331,23 @@ pub trait Session<'a> {
         measurements: Vec<Vec<&str>>,
         values: Vec<Vec<Value>>,
         timestamps: Vec<i64>,
-    ) -> Result<(), Box<dyn std::error::Error>>;
+    ) -> Result<()>;
 
-    fn insert_tablet(&mut self, tablet: &Tablet) -> Result<(), Box<dyn Error>>;
+    fn insert_tablet(&mut self, tablet: &Tablet) -> Result<()>;
 
-    fn insert_tablets(&mut self, tablets: Vec<&Tablet>) -> Result<(), Box<dyn Error>>;
+    fn insert_tablets(&mut self, tablets: Vec<&Tablet>) -> Result<()>;
 
-    fn execute_batch_statement(&mut self, statemens: Vec<&str>) -> Result<(), Box<dyn Error>>;
+    fn execute_batch_statement(&mut self, statemens: Vec<&str>) -> Result<()>;
 
     fn execute_raw_data_query(
         &'a mut self,
         paths: Vec<&str>,
         start_time: i64,
         end_time: i64,
-    ) -> Result<Box<dyn 'a + DataSet>, Box<dyn Error>>;
+    ) -> Result<Box<dyn 'a + DataSet>>;
 
     fn execute_update_statement(
         &'a mut self,
         statement: &str,
-    ) -> Result<Option<Box<dyn 'a + DataSet>>, Box<dyn Error>>;
+    ) -> Result<Option<Box<dyn 'a + DataSet>>>;
 }
