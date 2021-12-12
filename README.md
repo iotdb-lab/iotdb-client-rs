@@ -50,7 +50,8 @@ Apache IoTDB Github: https://github.com/apache/iotdb
 
 ## Prerequisites
 
-apache-iotdb 0.12.0 and newer.
+apache-iotdb 0.12.0 and newer.</br>
+rust 1.56.0 and newer.
 
 ## How to Use the Client (Quick Start)
 
