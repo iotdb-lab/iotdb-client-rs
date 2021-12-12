@@ -46,6 +46,8 @@ use super::{
 };
 use super::{DataSet, Dictionary, Result, Session, Value};
 
+static DEFAULT_TIME_ZONE: &str = "Asia/Shanghai";
+
 #[derive(Debug, Clone)]
 
 pub struct Config {
@@ -70,7 +72,7 @@ impl Default for Config {
             password: String::from("root"),
             timeout_ms: Some(30000),
             fetch_size: 1000,
-            timezone: Some(String::from("Asia/Shanghai")),
+            timezone: Some(String::from(DEFAULT_TIME_ZONE)),
             enable_compression: false,
             protocol_version: TSProtocolVersion::IOTDB_SERVICE_PROTOCOL_V3,
             is_align: true,
@@ -385,7 +387,7 @@ impl<'a> Session<'a> for RpcSession {
             self.config
                 .timezone
                 .clone()
-                .unwrap_or(Config::default().timezone.unwrap()),
+                .unwrap_or(DEFAULT_TIME_ZONE.to_string()),
             self.config.username.clone(),
             self.config.password.clone(),
             None,

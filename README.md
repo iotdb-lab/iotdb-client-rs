@@ -244,45 +244,38 @@ fn run() -> Result<()> {
 
     //execute_query_statement
     let dataset = session.execute_query_statement("select * from root.sg_rs.device2", None)?;
-    // Get columns, column types and values from the data set
+    // Get columns, column types and values from the dataset
     // For example:
-    // dataset
-    //     .get_column_names()
-    //     .iter()
-    //     .for_each(|c| print!("{}\t", c));
-    // print!("\n");
-    // dataset
-    //     .get_data_types()
-    //     .iter()
-    //     .for_each(|c| print!("{:?}\t", c));
-    // print!("\n");
-    // dataset.for_each(|r| {
-    //     r.values.iter().for_each(|v| match v {
-    //         Value::Bool(v) => print!("{}\t", v),
-    //         Value::Int32(v) => print!("{}\t", v),
-    //         Value::Int64(v) => print!("{}\t", v),
-    //         Value::Float(v) => print!("{}\t", v),
-    //         Value::Double(v) => print!("{}\t", v),
-    //         Value::Text(v) => print!("{}\t", v),
-    //         Value::Null => print!("null\t"),
-    //     });
-    //     print!("\n");
-    // });
+    let width = 18;
+    let column_count = dataset.get_column_names().len();
+    let print_line_sep = || println!("{:=<width$}", '=', width = (width + 1) * column_count + 1);
 
-    let mut table = Table::new();
-    table.set_titles(Row::new(
-        dataset
-            .get_column_names()
-            .iter()
-            .map(|c| cell!(c))
-            .collect(),
-    ));
-    dataset.for_each(|r: RowRecord| {
-        table.add_row(Row::new(
-            r.values.iter().map(|v: &Value| cell!(v)).collect(),
-        ));
+    print_line_sep();
+    dataset
+        .get_column_names()
+        .iter()
+        .for_each(|c| print!("|{:>width$}", c.split('.').last().unwrap(), width = width));
+    print!("|\n");
+    print_line_sep();
+    dataset.get_data_types().iter().for_each(|t| {
+        let type_name = format!("{:?}", t);
+        print!("|{:>width$}", type_name, width = width)
     });
-    table.printstd();
+    print!("|\n");
+    print_line_sep();
+    dataset.for_each(|r| {
+        r.values.iter().for_each(|v| match v {
+            Value::Bool(v) => print!("|{:>width$}", v, width = width),
+            Value::Int32(v) => print!("|{:>width$}", v, width = width),
+            Value::Int64(v) => print!("|{:>width$}", v, width = width),
+            Value::Float(v) => print!("|{:>width$}", v, width = width),
+            Value::Double(v) => print!("|{:>width$}", v, width = width),
+            Value::Text(v) => print!("|{:>width$}", v, width = width),
+            Value::Null => print!("|{:>width$}", "null", width = width),
+        });
+        print!("|\n");
+    });
+    print_line_sep();
 
     //execute_statement
     let dataset = session.execute_statement("show timeseries", None)?;

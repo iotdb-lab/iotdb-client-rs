@@ -23,6 +23,9 @@ readme = "README.md"
 description = "Rust client library for Apache IoTDB"
 keywords = ["iotdb", "iotdb-client-rust", "apache-iotdb"]
 repository = "https://github.com/manlge/iotdb-client-rs.git"
+license-file = "LICENSE"
+categories = ["database"]
+documentation = "https://docs.rs/iotdb-client-rs"
 
 [dependencies]
 thrift="0.15.0"
