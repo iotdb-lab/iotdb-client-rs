@@ -57,7 +57,7 @@ fn run() -> Result<()> {
     session.set_storage_group("root.ln2")?;
     session.delete_storage_groups(vec!["root.ln1", "root.ln2"])?;
 
-    //if storage group 'root.sg_rs' exist remove it.
+    //if storage group 'root.sg_rs' exist, remove it.
     // session
     //     .delete_storage_group("root.sg_rs")
     //     .unwrap_or_default();

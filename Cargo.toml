@@ -15,7 +15,7 @@
 
 [package]
 name = "iotdb-client-rs"
-version = "0.3.3"
+version = "0.3.4"
 authors = ["Mark Liu <manlge168@gmial.com>"]
 edition = "2021"
 license = "Apache-2.0"

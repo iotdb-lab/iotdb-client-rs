@@ -56,7 +56,7 @@ impl MeasurementSchema {
 }
 #[derive(Debug, Clone)]
 pub struct Tablet {
-    device_id: String,
+    prefix_path: String,
     measurement_schemas: Vec<MeasurementSchema>,
     timestamps: Vec<i64>,
     columns: Vec<Vec<Value>>,
@@ -77,13 +77,13 @@ impl Into<Vec<u8>> for &Tablet {
 }
 
 impl Tablet {
-    pub fn new(device_id: &str, measurement_schemas: Vec<MeasurementSchema>) -> Self {
+    pub fn new(prefix_path: &str, measurement_schemas: Vec<MeasurementSchema>) -> Self {
         let mut columns: Vec<Vec<Value>> = Vec::new();
         measurement_schemas
             .iter()
             .for_each(|_| columns.push(Vec::new()));
         Self {
-            device_id: device_id.to_string(),
+            prefix_path: prefix_path.to_string(),
             timestamps: Vec::new(),
             columns: columns,
             measurement_schemas: measurement_schemas.clone(),
@@ -99,8 +99,8 @@ impl Tablet {
         }
     }
 
-    pub fn get_device_id(&self) -> String {
-        self.device_id.clone()
+    pub fn get_prefix_path(&self) -> String {
+        self.prefix_path.clone()
     }
 
     pub fn get_measurement_schemas(&self) -> Vec<MeasurementSchema> {

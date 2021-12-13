@@ -886,7 +886,7 @@ impl<'a> Session<'a> for RpcSession {
 
             let status = self.client.insert_tablet(TSInsertTabletReq {
                 session_id: session_id,
-                prefix_path: tablet.get_device_id(),
+                prefix_path: tablet.get_prefix_path(),
                 measurements: tablet
                     .measurement_schemas
                     .iter()
@@ -916,7 +916,7 @@ impl<'a> Session<'a> for RpcSession {
         if let Some(session_id) = self.session_id {
             let status = self.client.insert_tablets(TSInsertTabletsReq {
                 session_id: session_id,
-                prefix_paths: tablets.iter().map(|t| t.get_device_id()).collect(),
+                prefix_paths: tablets.iter().map(|t| t.get_prefix_path()).collect(),
                 measurements_list: tablets
                     .iter()
                     .map(|tablet| {

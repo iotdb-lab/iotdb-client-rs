@@ -61,7 +61,7 @@ Put this in your `Cargo.toml`:
 
 ```toml
 [dependencies]
-iotdb-client-rs="0.3.3"
+iotdb-client-rs="0.3.4"
 chrono="0.4.19"
 prettytable-rs="0.8.0"
 ```
@@ -108,7 +108,7 @@ fn run() -> Result<()> {
     session.set_storage_group("root.ln2")?;
     session.delete_storage_groups(vec!["root.ln1", "root.ln2"])?;
 
-    //if storage group 'root.sg_rs' exist remove it.
+    //if storage group 'root.sg_rs' exist, remove it.
     // session
     //     .delete_storage_group("root.sg_rs")
     //     .unwrap_or_default();
