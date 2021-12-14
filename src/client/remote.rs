@@ -240,8 +240,8 @@ impl<'a> RpcDataSet<'a> {
         if self.closed {
             return false;
         }
-        if let Some(session_id) = self.session.session_id {
-            if self.query_data_set.time.len() == 0 {
+        if self.query_data_set.time.len() == 0 {
+            if let Some(session_id) = self.session.session_id {
                 //Fetching result from iotdb server
                 match self
                     .session
@@ -306,10 +306,8 @@ impl<'a> RpcDataSet<'a> {
                     }
                 }
             }
-            self.query_data_set.time.len() > 0
-        } else {
-            return false;
         }
+        self.query_data_set.time.len() > 0
     }
 }
 
