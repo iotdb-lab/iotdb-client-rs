@@ -61,21 +61,20 @@ Put this in your `Cargo.toml`:
 
 ```toml
 [dependencies]
-iotdb-client-rs="0.3.4"
+iotdb-client-rs="0.3.5"
 chrono="0.4.19"
 prettytable-rs="0.8.0"
 ```
 ## Example
 
-```rust
 use std::vec;
 
 use chrono;
 
 use chrono::Local;
-use iotdb_client_rs::client::remote::{Config, RpcSession};
-use iotdb_client_rs::client::{MeasurementSchema, Result, RowRecord, Session, Tablet, Value};
-use iotdb_client_rs::protocal::{TSCompressionType, TSDataType, TSEncoding};
+use iotdb::client::remote::{Config, RpcSession};
+use iotdb::client::{MeasurementSchema, Result, RowRecord, Session, Tablet, Value};
+use iotdb::protocal::{TSCompressionType, TSDataType, TSEncoding};
 use prettytable::{cell, Row, Table};
 
 fn main() {
@@ -402,4 +401,3 @@ fn create_tablet(row_count: i32, start_timestamp: i64) -> Tablet {
     });
     tablet
 }
-```

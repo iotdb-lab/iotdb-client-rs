@@ -22,9 +22,9 @@ use std::vec;
 use chrono;
 
 use chrono::Local;
-use iotdb_client_rs::client::remote::{Config, RpcSession};
-use iotdb_client_rs::client::{MeasurementSchema, Result, RowRecord, Session, Tablet, Value};
-use iotdb_client_rs::protocal::{TSCompressionType, TSDataType, TSEncoding};
+use iotdb::client::remote::{Config, RpcSession};
+use iotdb::client::{MeasurementSchema, Result, RowRecord, Session, Tablet, Value};
+use iotdb::protocal::{TSCompressionType, TSDataType, TSEncoding};
 use prettytable::{cell, Row, Table};
 
 fn main() {
