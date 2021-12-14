@@ -1135,3 +1135,13 @@ impl<'a> Session<'a> for RpcSession {
         }
     }
 }
+
+impl Drop for RpcSession {
+    fn drop(&mut self) {
+        if let Some(session_id) = self.session_id {
+            self.close().unwrap_or_else(|err| {
+                eprint!("error closing the session {}, reason {}", session_id, err)
+            });
+        }
+    }
+}
