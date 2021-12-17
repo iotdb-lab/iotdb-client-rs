@@ -62,10 +62,19 @@ Put this in your `Cargo.toml`:
 ```toml
 [dependencies]
 iotdb-client-rs="0.3.6"
+```
+
+## Example
+
+Put this in your example's `Cargo.toml`:
+
+```toml
+[dependencies]
+iotdb-client-rs="0.3.6"
 chrono="0.4.19"
 prettytable-rs="0.8.0"
+structopt = "0.3.25"
 ```
-## Example
 
 ```rust
 use std::vec;
@@ -77,17 +86,38 @@ use iotdb::client::remote::{Config, RpcSession};
 use iotdb::client::{MeasurementSchema, Result, RowRecord, Session, Tablet, Value};
 use iotdb::protocal::{TSCompressionType, TSDataType, TSEncoding};
 use prettytable::{cell, Row, Table};
+use structopt::StructOpt;
+
+#[derive(StructOpt, Debug)]
+#[structopt(name = "session_example")]
+struct Opt {
+    #[structopt(short = "h", long, default_value = "127.0.0.1")]
+    host: String,
+
+    #[structopt(short = "P", long, default_value = "6667")]
+    port: i32,
+
+    #[structopt(short = "u", long, default_value = "root")]
+    user: String,
+
+    #[structopt(short = "p", long, default_value = "root")]
+    password: String,
+
+    #[structopt(short = "c", long)]
+    clean: bool,
+}
 
 fn main() {
     run().expect("failed to run session_example.");
 }
 
 fn run() -> Result<()> {
+    let opt = Opt::from_args();
     let config = Config {
-        host: String::from("127.0.0.1"),
-        port: 6667,
-        username: String::from("root"),
-        password: String::from("root"),
+        host: opt.host,
+        port: opt.port,
+        username: opt.user,
+        password: opt.password,
         ..Default::default()
     };
     let mut session = RpcSession::new(&config)?;
@@ -109,9 +139,11 @@ fn run() -> Result<()> {
     session.delete_storage_groups(vec!["root.ln1", "root.ln2"])?;
 
     //if storage group 'root.sg_rs' exist, remove it.
-    // session
-    //     .delete_storage_group("root.sg_rs")
-    //     .unwrap_or_default();
+    if opt.clean {
+        session
+            .delete_storage_group("root.sg_rs")
+            .unwrap_or_default();
+    }
 
     //create_timeseries
     {
@@ -183,10 +215,10 @@ fn run() -> Result<()> {
                 "status",
             ]],
             vec![vec![
-                Value::Int32(1),
-                Value::Int64(2018),
+                Value::Int32(i32::MAX),
+                Value::Int64(1639704010752),
                 Value::Double(1988.1),
-                Value::Float(12.1),
+                Value::Float(36.8),
                 Value::Text("Test Device 1".to_string()),
                 Value::Bool(false),
             ]],

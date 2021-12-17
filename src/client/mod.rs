@@ -60,6 +60,7 @@ pub struct Tablet {
     measurement_schemas: Vec<MeasurementSchema>,
     timestamps: Vec<i64>,
     columns: Vec<Vec<Value>>,
+    // bitmaps: Vec<Vec<u8>>,
 }
 
 impl Into<Vec<u8>> for &Tablet {
@@ -112,6 +113,8 @@ impl Tablet {
             return Err(format!("row values '{:?}' must macth columns", row).into());
         }
 
+        row.iter().for_each(|v| assert!(*v != Value::Null));
+
         self.timestamps.push(timestamp);
         self.columns
             .iter_mut()
@@ -121,10 +124,13 @@ impl Tablet {
     }
 
     pub fn get_timestamps_at(&self, row_index: usize) -> i64 {
+        assert!(row_index < self.timestamps.len());
         return self.timestamps[row_index];
     }
 
     pub fn get_value_at(&self, colum_index: usize, row_index: usize) -> Value {
+        assert!(colum_index < self.columns.len());
+        assert!(row_index < self.timestamps.len());
         return self.columns[colum_index][row_index].clone();
     }
 
@@ -137,7 +143,7 @@ impl Tablet {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Bool(bool),
     Int32(i32),
