@@ -266,32 +266,8 @@ impl<'a> RpcDataSet<'a> {
                                     }
                                 } else {
                                     //Auto close the dataset when no result.
-                                    match self.session.client.close_operation(
-                                        super::rpc::TSCloseOperationReq {
-                                            session_id: session_id,
-                                            query_id: Some(self.query_id),
-                                            statement_id: Some(self.session.statement_id),
-                                        },
-                                    ) {
-                                        Ok(status) => match check_status(status) {
-                                            Ok(_) => {
-                                                self.closed = true;
-                                                return false;
-                                            }
-                                            Err(err) => {
-                                                eprint!(
-                                                    "An error occurred when closing dataset {:?}",
-                                                    err
-                                                )
-                                            }
-                                        },
-                                        Err(err) => {
-                                            eprint!(
-                                                "An error occurred when closing dataset {:?}",
-                                                err
-                                            )
-                                        }
-                                    }
+                                    self.close();
+                                    return false;
                                 }
                             }
                             Err(err) => {
@@ -308,6 +284,39 @@ impl<'a> RpcDataSet<'a> {
             }
         }
         self.query_data_set.time.len() > 0
+    }
+
+    pub fn close(&mut self) {
+        if !self.closed {
+            if let Some(session_id) = self.session.session_id {
+                match self
+                    .session
+                    .client
+                    .close_operation(super::rpc::TSCloseOperationReq {
+                        session_id: session_id,
+                        query_id: Some(self.query_id),
+                        statement_id: Some(self.session.statement_id),
+                    }) {
+                    Ok(status) => match check_status(status) {
+                        Ok(_) => {
+                            self.closed = true;
+                        }
+                        Err(err) => {
+                            eprint!("An error occurred when closing dataset {:?}", err)
+                        }
+                    },
+                    Err(err) => {
+                        eprint!("An error occurred when closing dataset {:?}", err)
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl<'a> Drop for RpcDataSet<'a> {
+    fn drop(&mut self) {
+        self.close();
     }
 }
 
@@ -327,7 +336,7 @@ impl<'a> DataSet for RpcDataSet<'a> {
         if self.is_ignore_timestamp() {
             self.data_types.clone()
         } else {
-            //Include the time column data type
+            //Include the time column
             let mut column_types = vec![TSDataType::Int64];
             column_types.extend(self.data_types.clone());
             column_types
