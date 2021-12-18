@@ -492,21 +492,21 @@ impl<'a> Session<'a> for RpcSession {
                     session_id,
                     paths.iter().map(|x| x.to_string()).collect(),
                     data_types
-                        .iter()
+                        .into_iter()
                         .map(|t| {
                             let n: i32 = t.into();
                             n
                         })
                         .collect(),
                     encodings
-                        .iter()
+                        .into_iter()
                         .map(|e| {
                             let n: i32 = e.into();
                             n
                         })
                         .collect(),
                     compressors
-                        .iter()
+                        .into_iter()
                         .map(|c| {
                             let n: i32 = c.into();
                             n
@@ -894,10 +894,10 @@ impl<'a> Session<'a> for RpcSession {
                 timestamps: timestamps_list,
                 types: tablet
                     .get_measurement_schemas()
-                    .iter()
+                    .into_iter()
                     .map(|measurement_schema| {
                         let t: i32;
-                        t = (&measurement_schema.data_type).into();
+                        t = measurement_schema.data_type.into();
                         t
                     })
                     .collect(),
@@ -948,9 +948,9 @@ impl<'a> Session<'a> for RpcSession {
                     .map(|tablet| {
                         tablet
                             .get_measurement_schemas()
-                            .iter()
+                            .into_iter()
                             .map(|f| {
-                                let t: i32 = (&(*f).data_type).into();
+                                let t: i32 = f.data_type.into();
                                 t
                             })
                             .collect()

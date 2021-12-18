@@ -94,19 +94,6 @@ pub enum TSDataType {
     Text = 5,
 }
 
-impl Into<i32> for &TSDataType {
-    fn into(self) -> i32 {
-        match self {
-            TSDataType::Boolean => 0,
-            TSDataType::Int32 => 1,
-            TSDataType::Int64 => 2,
-            TSDataType::Float => 3,
-            TSDataType::Double => 4,
-            TSDataType::Text => 5,
-        }
-    }
-}
-
 impl Into<i32> for TSDataType {
     fn into(self) -> i32 {
         match self {
@@ -163,22 +150,6 @@ impl Into<i32> for TSEncoding {
     }
 }
 
-impl Into<i32> for &TSEncoding {
-    fn into(self) -> i32 {
-        match self {
-            TSEncoding::Plain => 0,
-            TSEncoding::PlainDictionary => 1,
-            TSEncoding::RLE => 2,
-            TSEncoding::Diff => 3,
-            TSEncoding::Ts2diff => 4,
-            TSEncoding::Bitmap => 5,
-            TSEncoding::GorillaV1 => 6,
-            TSEncoding::Regular => 7,
-            TSEncoding::Gorilla => 8,
-        }
-    }
-}
-
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum TSCompressionType {
     UNCOMPRESSED = 0,
@@ -192,21 +163,6 @@ pub enum TSCompressionType {
 }
 
 impl Into<i32> for TSCompressionType {
-    fn into(self) -> i32 {
-        match self {
-            TSCompressionType::UNCOMPRESSED => 0,
-            TSCompressionType::SNAPPY => 1,
-            TSCompressionType::GZIP => 2,
-            TSCompressionType::LZO => 3,
-            TSCompressionType::SDT => 4,
-            TSCompressionType::PAA => 5,
-            TSCompressionType::PLA => 6,
-            TSCompressionType::LZ4 => 7,
-        }
-    }
-}
-
-impl Into<i32> for &TSCompressionType {
     fn into(self) -> i32 {
         match self {
             TSCompressionType::UNCOMPRESSED => 0,

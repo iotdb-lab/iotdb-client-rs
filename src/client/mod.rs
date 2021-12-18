@@ -113,7 +113,12 @@ impl Tablet {
             return Err(format!("row values '{:?}' must macth columns", row).into());
         }
 
-        row.iter().for_each(|v| assert!(*v != Value::Null));
+        row.iter().for_each(|v| {
+            assert!(
+                *v != Value::Null,
+                "Null values are currently not supported."
+            )
+        });
 
         self.timestamps.push(timestamp);
         self.columns
