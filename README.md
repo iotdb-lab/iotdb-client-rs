@@ -61,7 +61,7 @@ Put this in your `Cargo.toml`:
 
 ```toml
 [dependencies]
-iotdb-client-rs="0.3.6"
+iotdb-client-rs="0.3.7"
 ```
 
 ## Example
@@ -70,7 +70,7 @@ Put this in your example's `Cargo.toml`:
 
 ```toml
 [dependencies]
-iotdb-client-rs="0.3.6"
+iotdb-client-rs="0.3.7"
 chrono="0.4.19"
 prettytable-rs="0.8.0"
 structopt = "0.3.25"
@@ -88,30 +88,30 @@ use iotdb::protocal::{TSCompressionType, TSDataType, TSEncoding};
 use prettytable::{cell, Row, Table};
 use structopt::StructOpt;
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "session_example")]
-struct Opt {
-    #[structopt(short = "h", long, default_value = "127.0.0.1")]
-    host: String,
-
-    #[structopt(short = "P", long, default_value = "6667")]
-    port: i32,
-
-    #[structopt(short = "u", long, default_value = "root")]
-    user: String,
-
-    #[structopt(short = "p", long, default_value = "root")]
-    password: String,
-
-    #[structopt(short = "c", long)]
-    clean: bool,
-}
-
 fn main() {
     run().expect("failed to run session_example.");
 }
 
 fn run() -> Result<()> {
+    #[derive(StructOpt)]
+    #[structopt(name = "session_example")]
+    struct Opt {
+        #[structopt(short = "h", long, default_value = "127.0.0.1")]
+        host: String,
+
+        #[structopt(short = "P", long, default_value = "6667")]
+        port: i32,
+
+        #[structopt(short = "u", long, default_value = "root")]
+        user: String,
+
+        #[structopt(short = "p", long, default_value = "root")]
+        password: String,
+
+        #[structopt(short = "c", long)]
+        clean: bool,
+    }
+
     let opt = Opt::from_args();
     let config = Config {
         host: opt.host,

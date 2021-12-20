@@ -28,30 +28,30 @@ use iotdb::protocal::{TSCompressionType, TSDataType, TSEncoding};
 use prettytable::{cell, Row, Table};
 use structopt::StructOpt;
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "session_example")]
-struct Opt {
-    #[structopt(short = "h", long, default_value = "127.0.0.1")]
-    host: String,
-
-    #[structopt(short = "P", long, default_value = "6667")]
-    port: i32,
-
-    #[structopt(short = "u", long, default_value = "root")]
-    user: String,
-
-    #[structopt(short = "p", long, default_value = "root")]
-    password: String,
-
-    #[structopt(short = "c", long)]
-    clean: bool,
-}
-
 fn main() {
     run().expect("failed to run session_example.");
 }
 
 fn run() -> Result<()> {
+    #[derive(StructOpt)]
+    #[structopt(name = "session_example")]
+    struct Opt {
+        #[structopt(short = "h", long, default_value = "127.0.0.1")]
+        host: String,
+
+        #[structopt(short = "P", long, default_value = "6667")]
+        port: i32,
+
+        #[structopt(short = "u", long, default_value = "root")]
+        user: String,
+
+        #[structopt(short = "p", long, default_value = "root")]
+        password: String,
+
+        #[structopt(short = "c", long)]
+        clean: bool,
+    }
+
     let opt = Opt::from_args();
     let config = Config {
         host: opt.host,

@@ -220,7 +220,7 @@ impl Into<Vec<u8>> for &Value {
             }
             Value::Text(t) => {
                 let mut buff: Vec<u8> = Vec::new();
-                let len: i32 = t.len() as i32;
+                let len = t.len() as i32;
                 buff.push(TSDataType::Text as u8);
                 buff.append(&mut len.to_be_bytes().to_vec());
                 buff.append(&mut t.as_bytes().to_vec());
