@@ -61,7 +61,7 @@ Put this in your `Cargo.toml`:
 
 ```toml
 [dependencies]
-iotdb-client-rs="0.3.7"
+iotdb-client-rs="^0.3.7"
 ```
 
 ## Example
@@ -70,7 +70,7 @@ Put this in your example's `Cargo.toml`:
 
 ```toml
 [dependencies]
-iotdb-client-rs="0.3.7"
+iotdb-client-rs="^0.3.7"
 chrono="0.4.19"
 prettytable-rs="0.8.0"
 structopt = "0.3.25"
@@ -152,10 +152,25 @@ fn run() -> Result<()> {
             TSDataType::Float,
             TSEncoding::Plain,
             TSCompressionType::SNAPPY,
-            None,
-            None,
-            None,
-            None,
+            Some(
+                [("prop1", "1")]
+                    .iter()
+                    .map(|(key, val)| (key.to_string(), val.to_string()))
+                    .collect(),
+            ),
+            Some(
+                [("attr1", "1")]
+                    .iter()
+                    .map(|(key, val)| (key.to_string(), val.to_string()))
+                    .collect(),
+            ),
+            Some(
+                [("tag1", "1"), ("location", "D11")]
+                    .iter()
+                    .map(|(key, val)| (key.to_string(), val.to_string()))
+                    .collect(),
+            ),
+            Some("stats".to_string()),
         )?;
         session.delete_timeseries(vec!["root.sg_rs.dev2.status"])?;
     }
@@ -258,17 +273,18 @@ fn run() -> Result<()> {
         )?;
     }
 
-    //table
+    //tablet
     let mut ts = Local::now().timestamp_millis();
     let mut tablet1 = create_tablet(5, ts);
-    tablet1.sort();
+
     ts += 5;
     let mut tablet2 = create_tablet(10, ts);
+
     ts += 10;
     let mut tablet3 = create_tablet(2, ts);
-    tablet1.sort();
 
     //insert_tablet
+    tablet1.sort();
     session.insert_tablet(&tablet1)?;
 
     //insert_tablets
@@ -276,13 +292,6 @@ fn run() -> Result<()> {
         tablet2.sort();
         tablet3.sort();
         session.insert_tablets(vec![&tablet2, &tablet3])?;
-        session.insert_records_of_one_device(
-            "root.sg_rs.dev1",
-            vec![1, 16],
-            vec![vec!["status"], vec!["status"]],
-            vec![vec![Value::Bool(true)], vec![Value::Bool(true)]],
-            true,
-        )?;
     }
 
     //delete_data
@@ -352,6 +361,7 @@ fn run() -> Result<()> {
             "insert into root.sg_rs.dev6(time,s5) values(2,true)",
             "insert into root.sg_rs.dev6(time,s5) values(3,true)",
         ])?;
+        session.delete_timeseries(vec!["root.sg_rs.dev6"])?;
     }
     //execute_raw_data_query
     {
@@ -383,7 +393,7 @@ fn run() -> Result<()> {
     //execute_update_statement
     {
         if let Some(dataset) =
-            session.execute_update_statement("delete timeseries root.sg_rs.dev1.*")?
+            session.execute_update_statement("delete timeseries root.sg_rs.dev0.*")?
         {
             dataset.for_each(|r| println!("timestamp: {} {:?}", r.timestamp, r.values));
         }

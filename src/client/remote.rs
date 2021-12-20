@@ -265,7 +265,7 @@ impl<'a> RpcDataSet<'a> {
                                         self.row_index = 0;
                                     }
                                 } else {
-                                    //Auto close the dataset when no result.
+                                    //Auto close the dataset when it doesn't have any results on the server.
                                     self.close();
                                     return false;
                                 }
