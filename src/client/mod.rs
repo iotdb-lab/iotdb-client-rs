@@ -195,31 +195,31 @@ impl Into<Vec<u8>> for &Value {
                 false => vec![TSDataType::Boolean as u8, 0],
             },
             Value::Int32(v) => {
-                let mut buff: Vec<u8> = Vec::new();
+                let mut buff: Vec<u8> = Vec::with_capacity(4);
                 buff.push(TSDataType::Int32 as u8);
                 buff.append(&mut v.to_be_bytes().to_vec());
                 buff
             }
             Value::Int64(v) => {
-                let mut buff: Vec<u8> = Vec::new();
+                let mut buff: Vec<u8> = Vec::with_capacity(8);
                 buff.push(TSDataType::Int64 as u8);
                 buff.append(&mut v.to_be_bytes().to_vec());
                 buff
             }
             Value::Float(v) => {
-                let mut buff: Vec<u8> = Vec::new();
+                let mut buff: Vec<u8> = Vec::with_capacity(4);
                 buff.push(TSDataType::Float as u8);
                 buff.append(&mut v.to_be_bytes().to_vec());
                 buff
             }
             Value::Double(v) => {
-                let mut buff: Vec<u8> = Vec::new();
+                let mut buff: Vec<u8> = Vec::with_capacity(8);
                 buff.push(TSDataType::Double as u8);
                 buff.append(&mut v.to_be_bytes().to_vec());
                 buff
             }
             Value::Text(t) => {
-                let mut buff: Vec<u8> = Vec::new();
+                let mut buff: Vec<u8> = Vec::with_capacity(4+t.len());
                 let len = t.len() as i32;
                 buff.push(TSDataType::Text as u8);
                 buff.append(&mut len.to_be_bytes().to_vec());
