@@ -65,7 +65,7 @@ pub struct Tablet {
 
 impl Into<Vec<u8>> for &Tablet {
     fn into(self) -> Vec<u8> {
-        let mut buffer: Vec<u8> = Vec::new();
+        let mut buffer: Vec<u8> = Vec::with_capacity(self.get_row_count()*self.get_column_count()*8);
         self.columns.iter().for_each(|column| {
             column.iter().for_each(|v| {
                 let mut value_data: Vec<u8> = v.into();

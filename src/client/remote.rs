@@ -885,7 +885,7 @@ impl<'a> Session<'a> for RpcSession {
 
     fn insert_tablet(&mut self, tablet: &super::Tablet) -> Result<()> {
         if let Some(session_id) = self.session_id {
-            let mut timestamps_list: Vec<u8> = Vec::new();
+            let mut timestamps_list: Vec<u8> = Vec::with_capacity(tablet.timestamps.len() * 8);
             tablet
                 .timestamps
                 .iter()
