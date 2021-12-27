@@ -14,26 +14,26 @@
 # under the License.
 
 [package]
-name = "iotdb-client-rs"
-version = "0.3.7"
 authors = ["Mark Liu <manlge168@gmial.com>"]
-edition = "2021"
-license = "Apache-2.0"
-readme = "README.md"
-description = "Rust client library for Apache IoTDB"
-keywords = ["iotdb", "iotdb-client-rust", "apache-iotdb"]
-repository = "https://github.com/manlge/iotdb-client-rs.git"
 categories = ["database"]
+description = "Rust client library for Apache IoTDB"
 documentation = "https://docs.rs/iotdb-client-rs"
+edition = "2021"
+keywords = ["iotdb", "iotdb-client-rust", "apache-iotdb"]
+license = "Apache-2.0"
+name = "iotdb-client-rs"
+readme = "README.md"
+repository = "https://github.com/manlge/iotdb-client-rs.git"
+version = "0.3.8"
 
 [lib]
 name = "iotdb"
 
 [dev-dependencies]
-chrono="0.4.19"
+chrono = "0.4.19"
 prettytable-rs = "0.8.0"
 structopt = "0.3.25"
 
 [dependencies]
-thrift="0.15.0"
 permutation = "0.2.5"
+thrift = "0.15.0"

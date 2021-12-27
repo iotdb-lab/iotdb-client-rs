@@ -61,7 +61,7 @@ Put this in your `Cargo.toml`:
 
 ```toml
 [dependencies]
-iotdb-client-rs="^0.3.7"
+iotdb-client-rs="^0.3.8"
 ```
 
 ## Example
@@ -70,7 +70,7 @@ Put this in your example's `Cargo.toml`:
 
 ```toml
 [dependencies]
-iotdb-client-rs="^0.3.7"
+iotdb-client-rs="^0.3.8"
 chrono="0.4.19"
 prettytable-rs="0.8.0"
 structopt = "0.3.25"

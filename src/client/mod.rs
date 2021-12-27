@@ -67,10 +67,23 @@ impl Into<Vec<u8>> for &Tablet {
     fn into(self) -> Vec<u8> {
         let mut buffer: Vec<u8> = Vec::with_capacity(self.get_row_count()*self.get_column_count()*8);
         self.columns.iter().for_each(|column| {
-            column.iter().for_each(|v| {
-                let mut value_data: Vec<u8> = v.into();
-                value_data.remove(0); //first item is datatype, remove it.
-                buffer.append(&mut value_data);
+            column.iter().for_each(|value| {
+                match value{
+                    Value::Bool(v) =>  match v {
+                        true => buffer.push(1),
+                        false => buffer.push(0),
+                    },
+                    Value::Int32(v) => buffer.append(&mut v.to_be_bytes().to_vec()),
+                    Value::Int64(v) => buffer.append(&mut v.to_be_bytes().to_vec()),
+                    Value::Float(v) =>  buffer.append(&mut v.to_be_bytes().to_vec()),
+                    Value::Double(v) =>  buffer.append(&mut v.to_be_bytes().to_vec()),
+                    Value::Text(t) => {
+                        let len = t.len() as i32;
+                        buffer.append(&mut len.to_be_bytes().to_vec());
+                        buffer.append(&mut t.as_bytes().to_vec());
+                    },
+                    Value::Null => unimplemented!("null value doesn't implemented for tablet"),
+                }
             });
         });
         buffer
