@@ -24,6 +24,18 @@ use crate::protocal::{TSCompressionType, TSDataType, TSEncoding};
 use std::collections::BTreeMap;
 use std::error::Error;
 
+macro_rules! to_be_vec {
+    ($v:expr) => {{
+        $v.to_be_bytes().to_vec()
+    }};
+}
+
+macro_rules! str {
+    ($v:expr) => {{
+        $v.to_string()
+    }};
+}
+
 pub type Result<T> = core::result::Result<T, Box<dyn Error>>;
 
 pub type Dictionary = BTreeMap<String, String>;
@@ -65,25 +77,24 @@ pub struct Tablet {
 
 impl Into<Vec<u8>> for &Tablet {
     fn into(self) -> Vec<u8> {
-        let mut buffer: Vec<u8> = Vec::with_capacity(self.get_row_count()*self.get_column_count()*8);
+        let mut buffer: Vec<u8> =
+            Vec::with_capacity(self.get_row_count() * self.get_column_count() * 8);
         self.columns.iter().for_each(|column| {
-            column.iter().for_each(|value| {
-                match value{
-                    Value::Bool(v) =>  match v {
-                        true => buffer.push(1),
-                        false => buffer.push(0),
-                    },
-                    Value::Int32(v) => buffer.append(&mut v.to_be_bytes().to_vec()),
-                    Value::Int64(v) => buffer.append(&mut v.to_be_bytes().to_vec()),
-                    Value::Float(v) =>  buffer.append(&mut v.to_be_bytes().to_vec()),
-                    Value::Double(v) =>  buffer.append(&mut v.to_be_bytes().to_vec()),
-                    Value::Text(t) => {
-                        let len = t.len() as i32;
-                        buffer.append(&mut len.to_be_bytes().to_vec());
-                        buffer.append(&mut t.as_bytes().to_vec());
-                    },
-                    Value::Null => unimplemented!("null value doesn't implemented for tablet"),
+            column.iter().for_each(|value| match value {
+                Value::Bool(v) => match v {
+                    true => buffer.push(1),
+                    false => buffer.push(0),
+                },
+                Value::Int32(v) => buffer.append(&mut to_be_vec!(v)),
+                Value::Int64(v) => buffer.append(&mut to_be_vec!(v)),
+                Value::Float(v) => buffer.append(&mut to_be_vec!(v)),
+                Value::Double(v) => buffer.append(&mut to_be_vec!(v)),
+                Value::Text(t) => {
+                    let len = t.len() as i32;
+                    buffer.append(&mut len.to_be_bytes().to_vec());
+                    buffer.append(&mut t.as_bytes().to_vec());
                 }
+                Value::Null => unimplemented!("null value doesn't implemented for tablet"),
             });
         });
         buffer
@@ -175,13 +186,13 @@ pub enum Value {
 impl ToString for Value {
     fn to_string(&self) -> String {
         match &self {
-            Value::Bool(v) => v.to_string(),
-            Value::Int32(v) => v.to_string(),
-            Value::Int64(v) => v.to_string(),
-            Value::Float(v) => v.to_string(),
-            Value::Double(v) => v.to_string(),
-            Value::Text(v) => v.to_string(),
-            Value::Null => "null".to_string(),
+            Value::Bool(v) => str!(v),
+            Value::Int32(v) => str!(v),
+            Value::Int64(v) => str!(v),
+            Value::Float(v) => str!(v),
+            Value::Double(v) => str!(v),
+            Value::Text(v) => str!(v),
+            Value::Null => str!("null"),
         }
     }
 }
@@ -210,32 +221,32 @@ impl Into<Vec<u8>> for &Value {
             Value::Int32(v) => {
                 let mut buff: Vec<u8> = Vec::with_capacity(4);
                 buff.push(TSDataType::Int32 as u8);
-                buff.append(&mut v.to_be_bytes().to_vec());
+                buff.append(&mut to_be_vec!(v));
                 buff
             }
             Value::Int64(v) => {
                 let mut buff: Vec<u8> = Vec::with_capacity(8);
                 buff.push(TSDataType::Int64 as u8);
-                buff.append(&mut v.to_be_bytes().to_vec());
+                buff.append(&mut to_be_vec!(v));
                 buff
             }
             Value::Float(v) => {
                 let mut buff: Vec<u8> = Vec::with_capacity(4);
                 buff.push(TSDataType::Float as u8);
-                buff.append(&mut v.to_be_bytes().to_vec());
+                buff.append(&mut to_be_vec!(v));
                 buff
             }
             Value::Double(v) => {
                 let mut buff: Vec<u8> = Vec::with_capacity(8);
                 buff.push(TSDataType::Double as u8);
-                buff.append(&mut v.to_be_bytes().to_vec());
+                buff.append(&mut to_be_vec!(v));
                 buff
             }
             Value::Text(t) => {
-                let mut buff: Vec<u8> = Vec::with_capacity(4+t.len());
+                let mut buff: Vec<u8> = Vec::with_capacity(4 + t.len());
                 let len = t.len() as i32;
                 buff.push(TSDataType::Text as u8);
-                buff.append(&mut len.to_be_bytes().to_vec());
+                buff.append(&mut to_be_vec!(len));
                 buff.append(&mut t.as_bytes().to_vec());
                 buff
             }

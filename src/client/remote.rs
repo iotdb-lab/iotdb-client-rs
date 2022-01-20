@@ -34,7 +34,10 @@ use crate::client::rpc::{
     TSInsertStringRecordReq, TSInsertTabletReq, TSOpenSessionReq, TSProtocolVersion,
     TTSIServiceSyncClient,
 };
-use crate::protocal::{TSDataType, FLAG, MULTIPLE_ERROR, NEED_REDIRECTION, SUCCESS_STATUS};
+use crate::protocal::{
+    TSCompressionType, TSDataType, TSEncoding, FLAG, MULTIPLE_ERROR, NEED_REDIRECTION,
+    SUCCESS_STATUS,
+};
 
 use super::rpc::{
     TSDeleteDataReq, TSExecuteStatementReq, TSInsertRecordReq, TSInsertRecordsOfOneDeviceReq,
@@ -195,7 +198,11 @@ impl<'a> Iterator for RpcDataSet<'a> {
 
             self.row_index += 1;
 
-            let mut output_values: Vec<Value> = Vec::with_capacity(self.get_column_names().len());
+            let mut output_values: Vec<Value> = Vec::with_capacity(if self.is_ignore_timestamp() {
+                self.get_column_names().len()
+            } else {
+                self.get_column_names().len() + 1
+            });
             if !self.is_ignore_timestamp() {
                 output_values.push(Value::Int64(self.timestamp));
             }
@@ -425,7 +432,7 @@ impl<'a> Session<'a> for RpcSession {
         if let Some(session_id) = self.session_id {
             let status = self
                 .client
-                .set_storage_group(session_id, storage_group_id.to_string())?;
+                .set_storage_group(session_id, storage_group_id.into())?;
             check_status(status)
         } else {
             fire_closed_error()
@@ -440,7 +447,7 @@ impl<'a> Session<'a> for RpcSession {
         if let Some(session_id) = self.session_id {
             let status = self.client.delete_storage_groups(
                 session_id,
-                storage_group_ids.iter().map(|x| x.to_string()).collect(),
+                storage_group_ids.iter().map(ToString::to_string).collect(),
             )?;
             check_status(status)
         } else {
@@ -499,27 +506,12 @@ impl<'a> Session<'a> for RpcSession {
                 .client
                 .create_multi_timeseries(TSCreateMultiTimeseriesReq::new(
                     session_id,
-                    paths.iter().map(|x| x.to_string()).collect(),
-                    data_types
-                        .into_iter()
-                        .map(|t| {
-                            let n: i32 = t.into();
-                            n
-                        })
-                        .collect(),
-                    encodings
-                        .into_iter()
-                        .map(|e| {
-                            let n: i32 = e.into();
-                            n
-                        })
-                        .collect(),
+                    paths.iter().map(ToString::to_string).collect(),
+                    data_types.into_iter().map(TSDataType::into).collect(),
+                    encodings.into_iter().map(TSEncoding::into).collect(),
                     compressors
                         .into_iter()
-                        .map(|c| {
-                            let n: i32 = c.into();
-                            n
-                        })
+                        .map(TSCompressionType::into)
                         .collect(),
                     props_list,
                     attributes_list,
@@ -536,7 +528,7 @@ impl<'a> Session<'a> for RpcSession {
         if let Some(session_id) = self.session_id {
             let status = self
                 .client
-                .delete_timeseries(session_id, paths.iter().map(|x| x.to_string()).collect())?;
+                .delete_timeseries(session_id, paths.iter().map(ToString::to_string).collect())?;
             check_status(status)
         } else {
             fire_closed_error()
@@ -547,7 +539,7 @@ impl<'a> Session<'a> for RpcSession {
         if let Some(session_id) = self.session_id {
             let status = self.client.delete_data(TSDeleteDataReq::new(
                 session_id,
-                paths.iter().map(|p| p.to_string()).collect(),
+                paths.into_iter().map(ToString::to_string).collect(),
                 start_time,
                 end_time,
             ))?;
@@ -574,8 +566,8 @@ impl<'a> Session<'a> for RpcSession {
                 .insert_string_record(TSInsertStringRecordReq::new(
                     session_id,
                     device_id.to_string(),
-                    measurements.iter().map(|x| x.to_string()).collect(),
-                    values.iter().map(|x| x.to_string()).collect(),
+                    measurements.iter().map(ToString::to_string).collect(),
+                    values.iter().map(ToString::to_string).collect(),
                     timestamp,
                     is_aligned,
                 ))?;
@@ -647,7 +639,7 @@ impl<'a> Session<'a> for RpcSession {
                         };
 
                         let data_types: Vec<TSDataType> =
-                            data_type_list.iter().map(|t| TSDataType::from(t)).collect();
+                            data_type_list.iter().map(TSDataType::from).collect();
 
                         let mut column_index_map: HashMap<usize, usize> = HashMap::new();
 
@@ -726,7 +718,7 @@ impl<'a> Session<'a> for RpcSession {
                     .data_type_list
                     .unwrap()
                     .iter()
-                    .map(|t| TSDataType::from(t))
+                    .map(TSDataType::from)
                     .collect();
 
                 let mut column_index_map: HashMap<usize, usize> = HashMap::new();
@@ -783,7 +775,7 @@ impl<'a> Session<'a> for RpcSession {
             let status = self.client.insert_record(TSInsertRecordReq::new(
                 session_id,
                 device_id.to_string(),
-                measurements.iter().map(|x| x.to_string()).collect(),
+                measurements.iter().map(ToString::to_string).collect(),
                 values_bytes,
                 timestamp,
                 is_aligned,
@@ -832,7 +824,7 @@ impl<'a> Session<'a> for RpcSession {
                         device_id.to_string(),
                         sorted_measurements
                             .iter()
-                            .map(|vec| vec.iter().map(|s| s.to_string()).collect())
+                            .map(|vec| vec.iter().map(ToString::to_string).collect())
                             .collect(),
                         values_list,
                         sorted_timestamps,
@@ -865,13 +857,10 @@ impl<'a> Session<'a> for RpcSession {
                 .collect();
             let status = self.client.insert_records(TSInsertRecordsReq {
                 session_id: session_id,
-                prefix_paths: device_ids
-                    .iter()
-                    .map(|device_id| device_id.to_string())
-                    .collect(),
+                prefix_paths: device_ids.iter().map(ToString::to_string).collect(),
                 measurements_list: measurements
                     .iter()
-                    .map(|ms| ms.iter().map(|m| m.to_string()).collect())
+                    .map(|ms| ms.iter().map(ToString::to_string).collect())
                     .collect(),
                 values_list: values_list,
                 timestamps: timestamps,
@@ -904,11 +893,7 @@ impl<'a> Session<'a> for RpcSession {
                 types: tablet
                     .get_measurement_schemas()
                     .into_iter()
-                    .map(|measurement_schema| {
-                        let t: i32;
-                        t = measurement_schema.data_type.into();
-                        t
-                    })
+                    .map(|measurement_schema| measurement_schema.data_type.into())
                     .collect(),
                 size: tablet.get_row_count() as i32,
                 is_aligned: Some(false),
@@ -983,7 +968,7 @@ impl<'a> Session<'a> for RpcSession {
                 self.client
                     .execute_batch_statement(super::rpc::TSExecuteBatchStatementReq {
                         session_id: session_id,
-                        statements: statemens.iter().map(|f| f.to_string()).collect(),
+                        statements: statemens.iter().map(ToString::to_string).collect(),
                     })?;
             check_status(status)
         } else {
@@ -1002,7 +987,7 @@ impl<'a> Session<'a> for RpcSession {
                 .client
                 .execute_raw_data_query(super::rpc::TSRawDataQueryReq {
                     session_id: session_id,
-                    paths: paths.iter().map(|f| f.to_string()).collect(),
+                    paths: paths.iter().map(ToString::to_string).collect(),
                     fetch_size: Some(self.config.fetch_size),
                     start_time: start_time,
                     end_time: end_time,
@@ -1027,10 +1012,8 @@ impl<'a> Session<'a> for RpcSession {
                         }
                     };
 
-                    let data_types: Vec<TSDataType> = data_types_list
-                        .iter()
-                        .map(|t| TSDataType::from(t))
-                        .collect();
+                    let data_types: Vec<TSDataType> =
+                        data_types_list.iter().map(TSDataType::from).collect();
 
                     let mut column_index_map: HashMap<usize, usize> = HashMap::new();
 
@@ -1103,7 +1086,7 @@ impl<'a> Session<'a> for RpcSession {
                     };
 
                     let data_types: Vec<TSDataType> =
-                        data_type_list.iter().map(|t| TSDataType::from(t)).collect();
+                        data_type_list.iter().map(TSDataType::from).collect();
 
                     let mut column_index_map: HashMap<usize, usize> = HashMap::new();
 
