@@ -18,6 +18,7 @@
 //
 
 use std::collections::{BTreeMap, HashMap};
+use std::error::Error;
 use std::vec;
 use thrift::transport::TIoChannel;
 
@@ -94,38 +95,38 @@ impl<'a> RpcSession {
     pub fn new(config: &Config) -> Result<Self> {
         let mut tcp_channel = TTcpChannel::new();
         let endpint = format!("{}:{}", config.host, config.port);
-        match tcp_channel.open(&endpint) {
-            Ok(_) => {
-                let (i_chan, o_chan) = tcp_channel.split()?;
 
-                let (i_prot, o_prot) = (
-                    TFramedReadTransport::new(i_chan),
-                    TFramedWriteTransport::new(o_chan),
-                );
+        tcp_channel.open(&endpint).map_err(|err| {
+            Box::<dyn Error>::from(
+                format!("failed to connect to {}, {:?}", endpint, err).to_string(),
+            )
+        })?;
 
-                let (input_protocol, output_protocol): (
-                    Box<dyn TInputProtocol>,
-                    Box<dyn TOutputProtocol>,
-                ) = match config.enable_compression {
-                    false => (
-                        Box::new(TBinaryInputProtocol::new(i_prot, true)),
-                        Box::new(TBinaryOutputProtocol::new(o_prot, true)),
-                    ),
-                    true => (
-                        Box::new(TCompactInputProtocol::new(i_prot)),
-                        Box::new(TCompactOutputProtocol::new(o_prot)),
-                    ),
-                };
+        let (i_chan, o_chan) = tcp_channel.split()?;
 
-                Ok(Self {
-                    config: config.clone(),
-                    session_id: None,
-                    statement_id: -1,
-                    client: TSIServiceSyncClient::new(input_protocol, output_protocol),
-                })
-            }
-            Err(err) => Err(format!("failed to connect to {}, {:?}", endpint, err).into()),
-        }
+        let (i_prot, o_prot) = (
+            TFramedReadTransport::new(i_chan),
+            TFramedWriteTransport::new(o_chan),
+        );
+
+        let (input_protocol, output_protocol): (Box<dyn TInputProtocol>, Box<dyn TOutputProtocol>) =
+            match config.enable_compression {
+                false => (
+                    Box::new(TBinaryInputProtocol::new(i_prot, true)),
+                    Box::new(TBinaryOutputProtocol::new(o_prot, true)),
+                ),
+                true => (
+                    Box::new(TCompactInputProtocol::new(i_prot)),
+                    Box::new(TCompactOutputProtocol::new(o_prot)),
+                ),
+            };
+
+        Ok(Self {
+            config: config.clone(),
+            session_id: None,
+            statement_id: -1,
+            client: TSIServiceSyncClient::new(input_protocol, output_protocol),
+        })
     }
 }
 
@@ -237,6 +238,7 @@ pub struct RpcDataSet<'a> {
 }
 
 impl<'a> RpcDataSet<'a> {
+    #[allow(dead_code)]
     fn is_null(&self, column_index: usize, row_index: usize) -> bool {
         let bitmap = self.bitmaps[column_index];
         let shift = row_index % 8;
@@ -838,7 +840,7 @@ impl<'a> Session<'a> for RpcSession {
 
     fn insert_records(
         &mut self,
-        device_ids: Vec<&str>,
+        prefix_path: Vec<&str>,
         measurements: Vec<Vec<&str>>,
         values: Vec<Vec<super::Value>>,
         timestamps: Vec<i64>,
@@ -857,7 +859,7 @@ impl<'a> Session<'a> for RpcSession {
                 .collect();
             let status = self.client.insert_records(TSInsertRecordsReq {
                 session_id: session_id,
-                prefix_paths: device_ids.iter().map(ToString::to_string).collect(),
+                prefix_paths: prefix_path.iter().map(ToString::to_string).collect(),
                 measurements_list: measurements
                     .iter()
                     .map(|ms| ms.iter().map(ToString::to_string).collect())
@@ -919,13 +921,7 @@ impl<'a> Session<'a> for RpcSession {
                             .collect()
                     })
                     .collect(),
-                values_list: tablets
-                    .iter()
-                    .map(|tablet| {
-                        let values: Vec<u8> = (*tablet).into();
-                        values
-                    })
-                    .collect(),
+                values_list: tablets.iter().map(|tablet| Into::into(*tablet)).collect(),
                 timestamps_list: tablets
                     .iter()
                     .map(|tablet| {

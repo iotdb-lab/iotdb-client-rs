@@ -24,6 +24,7 @@
 #![allow(unused_extern_crates)]
 #![allow(clippy::too_many_arguments, clippy::type_complexity, clippy::vec_box)]
 #![cfg_attr(rustfmt, rustfmt_skip)]
+#![allow(dead_code)]
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};

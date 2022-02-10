@@ -362,7 +362,7 @@ pub trait Session<'a> {
 
     fn insert_records(
         &mut self,
-        device_ids: Vec<&str>,
+        prefix_path: Vec<&str>,
         measurements: Vec<Vec<&str>>,
         values: Vec<Vec<Value>>,
         timestamps: Vec<i64>,
