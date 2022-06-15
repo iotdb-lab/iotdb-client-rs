@@ -110,15 +110,16 @@ impl<'a> RpcSession {
         );
 
         let (input_protocol, output_protocol): (Box<dyn TInputProtocol>, Box<dyn TOutputProtocol>) =
-            match config.enable_compression {
-                false => (
-                    Box::new(TBinaryInputProtocol::new(i_prot, true)),
-                    Box::new(TBinaryOutputProtocol::new(o_prot, true)),
-                ),
-                true => (
+            if config.enable_compression {
+                (
                     Box::new(TCompactInputProtocol::new(i_prot)),
                     Box::new(TCompactOutputProtocol::new(o_prot)),
-                ),
+                )
+            } else {
+                (
+                    Box::new(TBinaryInputProtocol::new(i_prot, true)),
+                    Box::new(TBinaryOutputProtocol::new(o_prot, true)),
+                )
             };
 
         Ok(Self {

@@ -17,7 +17,7 @@
 // under the License.
 //
 
-use std::vec;
+use std::{collections::BTreeMap, vec};
 
 use chrono;
 
@@ -92,24 +92,18 @@ fn run() -> Result<()> {
             TSDataType::Float,
             TSEncoding::Plain,
             TSCompressionType::SNAPPY,
-            Some(
-                [("prop1", "1")]
-                    .iter()
-                    .map(|(key, val)| (key.to_string(), val.to_string()))
-                    .collect(),
-            ),
-            Some(
-                [("attr1", "1")]
-                    .iter()
-                    .map(|(key, val)| (key.to_string(), val.to_string()))
-                    .collect(),
-            ),
-            Some(
-                [("tag1", "1"), ("location", "D11")]
-                    .iter()
-                    .map(|(key, val)| (key.to_string(), val.to_string()))
-                    .collect(),
-            ),
+            Some(BTreeMap::from([
+                ("prop1".to_owned(), "1".to_owned()),
+                ("prop2".to_owned(), "2".to_owned()),
+            ])),
+            Some(BTreeMap::from([
+                ("attr1".to_owned(), "1".to_owned()),
+                ("attr2".to_owned(), "2".to_owned()),
+            ])),
+            Some(BTreeMap::from([
+                ("tag1".to_owned(), "1".to_owned()),
+                ("tag2".to_owned(), "2".to_owned()),
+            ])),
             Some("stats".to_string()),
         )?;
         session.delete_timeseries(vec!["root.sg_rs.dev2.status"])?;
