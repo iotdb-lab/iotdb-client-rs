@@ -53,7 +53,6 @@ use super::{DataSet, Dictionary, Result, Session, Value};
 static DEFAULT_TIME_ZONE: &str = "Asia/Shanghai";
 
 #[derive(Debug, Clone)]
-
 pub struct Config {
     pub host: String,
     pub port: i32,
@@ -92,14 +91,12 @@ pub struct RpcSession {
 }
 
 impl<'a> RpcSession {
-    pub fn new(config: &Config) -> Result<Self> {
+    pub fn new(config: &'a Config) -> Result<Self> {
         let mut tcp_channel = TTcpChannel::new();
         let endpint = format!("{}:{}", config.host, config.port);
 
         tcp_channel.open(&endpint).map_err(|err| {
-            Box::<dyn Error>::from(
-                format!("failed to connect to {}, {:?}", endpint, err).to_string(),
-            )
+            Box::<dyn Error>::from(format!("failed to connect to {}, {:?}", endpint, err))
         })?;
 
         let (i_chan, o_chan) = tcp_channel.split()?;
@@ -243,21 +240,21 @@ impl<'a> RpcDataSet<'a> {
     fn is_null(&self, column_index: usize, row_index: usize) -> bool {
         let bitmap = self.bitmaps[column_index];
         let shift = row_index % 8;
-        return ((FLAG >> shift) & (bitmap & 0xff)) == 0;
+        ((FLAG >> shift) & (bitmap & 0xff)) == 0
     }
 
     fn has_cached_results(&mut self) -> bool {
         if self.closed {
             return false;
         }
-        if self.query_data_set.time.len() == 0 {
+        if self.query_data_set.time.is_empty() {
             if let Some(session_id) = self.session.session_id {
                 //Fetching result from iotdb server
                 match self
                     .session
                     .client
                     .fetch_results(super::rpc::TSFetchResultsReq {
-                        session_id: session_id,
+                        session_id,
                         statement: self.statement.clone(),
                         fetch_size: self.session.config.fetch_size,
                         query_id: self.query_id,
@@ -293,7 +290,7 @@ impl<'a> RpcDataSet<'a> {
                 }
             }
         }
-        self.query_data_set.time.len() > 0
+        !self.query_data_set.time.is_empty()
     }
 
     pub fn close(&mut self) {
@@ -303,7 +300,7 @@ impl<'a> RpcDataSet<'a> {
                     .session
                     .client
                     .close_operation(super::rpc::TSCloseOperationReq {
-                        session_id: session_id,
+                        session_id,
                         query_id: Some(self.query_id),
                         statement_id: Some(self.session.statement_id),
                     }) {
@@ -377,7 +374,7 @@ fn check_status(status: TSStatus) -> Result<()> {
                     }
                 }
             }
-            if messges.len() > 0 {
+            if !messges.is_empty() {
                 Err(messges.into())
             } else {
                 Ok(())
@@ -404,7 +401,7 @@ impl<'a> Session<'a> for RpcSession {
             self.config
                 .timezone
                 .clone()
-                .unwrap_or(DEFAULT_TIME_ZONE.to_string()),
+                .unwrap_or_else(|| DEFAULT_TIME_ZONE.to_string()),
             self.config.username.clone(),
             self.config.password.clone(),
             None,
@@ -615,7 +612,7 @@ impl<'a> Session<'a> for RpcSession {
     {
         if let Some(session_id) = self.session_id {
             let resp = self.client.execute_statement(TSExecuteStatementReq {
-                session_id: session_id,
+                session_id,
                 statement: statement.to_string(),
                 statement_id: self.statement_id,
                 fetch_size: Some(self.config.fetch_size),
@@ -652,30 +649,30 @@ impl<'a> Session<'a> for RpcSession {
                                 .insert(*column_name_index_map.get(name).unwrap() as usize, index);
                         }
 
-                        return Ok(Box::new(RpcDataSet {
+                        Ok(Box::new(RpcDataSet {
                             session: self,
                             statement: statement.to_string(),
                             query_id: resp.query_id.unwrap(),
                             timestamp: -1,
                             is_ignore_time_stamp: resp.ignore_time_stamp,
                             query_data_set: resp.query_data_set.unwrap(),
-                            column_names: column_names,
-                            data_types: data_types,
+                            column_names,
+                            data_types,
                             bitmaps: vec![0_u8; column_count],
                             row_index: 0,
-                            column_index_map: column_index_map,
-                            column_name_index_map: column_name_index_map,
+                            column_index_map,
+                            column_name_index_map,
                             closed: false,
-                        }));
+                        }))
                     } else {
                         Err("Can't get resources on execute_statement".into())
                     }
                 }
             } else {
                 if let Err(e) = check_status(status) {
-                    return Err(e);
+                    Err(e)
                 } else {
-                    return Err(format!("Unknow, code: {}", code).to_string().into());
+                    Err(format!("Unknow, code: {}", code).into())
                 }
             }
         } else {
@@ -693,7 +690,7 @@ impl<'a> Session<'a> for RpcSession {
     {
         if let Some(session_id) = self.session_id {
             let resp = self.client.execute_query_statement(TSExecuteStatementReq {
-                session_id: session_id,
+                session_id,
                 statement: statement.to_string(),
                 statement_id: self.statement_id,
                 fetch_size: Some(self.config.fetch_size),
@@ -738,15 +735,15 @@ impl<'a> Session<'a> for RpcSession {
                     timestamp: -1,
                     is_ignore_time_stamp: resp.ignore_time_stamp,
                     query_data_set: resp.query_data_set.unwrap(),
-                    column_names: column_names,
-                    data_types: data_types,
+                    column_names,
+                    data_types,
                     bitmaps: vec![0_u8; column_count],
                     row_index: 0,
-                    column_index_map: column_index_map,
-                    column_name_index_map: column_name_index_map,
+                    column_index_map,
+                    column_name_index_map,
                     closed: false,
                 };
-                return Ok(Box::new(dataset));
+                Ok(Box::new(dataset))
             } else {
                 match check_status(status) {
                     Ok(_) => Err(format!("Unknow, code: {}", code).into()),
@@ -859,14 +856,14 @@ impl<'a> Session<'a> for RpcSession {
                 })
                 .collect();
             let status = self.client.insert_records(TSInsertRecordsReq {
-                session_id: session_id,
+                session_id,
                 prefix_paths: prefix_path.iter().map(ToString::to_string).collect(),
                 measurements_list: measurements
                     .iter()
                     .map(|ms| ms.iter().map(ToString::to_string).collect())
                     .collect(),
-                values_list: values_list,
-                timestamps: timestamps,
+                values_list,
+                timestamps,
                 is_aligned: None,
             })?;
             check_status(status)
@@ -884,7 +881,7 @@ impl<'a> Session<'a> for RpcSession {
                 .for_each(|ts| timestamps_list.append(&mut ts.to_be_bytes().to_vec()));
 
             let status = self.client.insert_tablet(TSInsertTabletReq {
-                session_id: session_id,
+                session_id,
                 prefix_path: tablet.get_prefix_path(),
                 measurements: tablet
                     .measurement_schemas
@@ -910,7 +907,7 @@ impl<'a> Session<'a> for RpcSession {
     fn insert_tablets(&mut self, tablets: Vec<&super::Tablet>) -> Result<()> {
         if let Some(session_id) = self.session_id {
             let status = self.client.insert_tablets(TSInsertTabletsReq {
-                session_id: session_id,
+                session_id,
                 prefix_paths: tablets.iter().map(|t| t.get_prefix_path()).collect(),
                 measurements_list: tablets
                     .iter()
@@ -964,7 +961,7 @@ impl<'a> Session<'a> for RpcSession {
             let status =
                 self.client
                     .execute_batch_statement(super::rpc::TSExecuteBatchStatementReq {
-                        session_id: session_id,
+                        session_id,
                         statements: statemens.iter().map(ToString::to_string).collect(),
                     })?;
             check_status(status)
@@ -983,11 +980,11 @@ impl<'a> Session<'a> for RpcSession {
             let resp = self
                 .client
                 .execute_raw_data_query(super::rpc::TSRawDataQueryReq {
-                    session_id: session_id,
+                    session_id,
                     paths: paths.iter().map(ToString::to_string).collect(),
                     fetch_size: Some(self.config.fetch_size),
-                    start_time: start_time,
-                    end_time: end_time,
+                    start_time,
+                    end_time,
                     statement_id: self.statement_id,
                     enable_redirect_query: None,
                     jdbc_query: None,
@@ -1020,21 +1017,21 @@ impl<'a> Session<'a> for RpcSession {
                             .insert(*column_name_index_map.get(name).unwrap() as usize, index);
                     }
 
-                    return Ok(Box::new(RpcDataSet {
+                    Ok(Box::new(RpcDataSet {
                         session: self,
                         statement: "".to_string(),
                         query_id: resp.query_id.unwrap(),
                         timestamp: -1,
                         is_ignore_time_stamp: resp.ignore_time_stamp,
-                        query_data_set: query_data_set,
-                        column_names: column_names,
-                        data_types: data_types,
+                        query_data_set,
+                        column_names,
+                        data_types,
                         bitmaps: vec![0_u8; column_count],
                         row_index: 0,
-                        column_index_map: column_index_map,
-                        column_name_index_map: column_name_index_map,
+                        column_index_map,
+                        column_name_index_map,
                         closed: false,
-                    }));
+                    }))
                 } else {
                     Err("Did't get the result.".into())
                 }
@@ -1057,7 +1054,7 @@ impl<'a> Session<'a> for RpcSession {
             let resp = self
                 .client
                 .execute_update_statement(TSExecuteStatementReq {
-                    session_id: session_id,
+                    session_id,
                     statement: statement.to_string(),
                     statement_id: self.statement_id,
                     fetch_size: Some(self.config.fetch_size),
@@ -1093,21 +1090,21 @@ impl<'a> Session<'a> for RpcSession {
                             .insert(*column_name_index_map.get(name).unwrap() as usize, index);
                     }
 
-                    return Ok(Some(Box::new(RpcDataSet {
+                    Ok(Some(Box::new(RpcDataSet {
                         session: self,
                         statement: statement.to_string(),
                         query_id: resp.query_id.unwrap(),
                         timestamp: -1,
                         is_ignore_time_stamp: resp.ignore_time_stamp,
-                        query_data_set: query_data_set,
-                        column_names: column_names,
-                        data_types: data_types,
+                        query_data_set,
+                        column_names,
+                        data_types,
                         bitmaps: vec![0_u8; column_count],
                         row_index: 0,
-                        column_index_map: column_index_map,
-                        column_name_index_map: column_name_index_map,
+                        column_index_map,
+                        column_name_index_map,
                         closed: false,
-                    })));
+                    })))
                 } else {
                     Ok(None)
                 }

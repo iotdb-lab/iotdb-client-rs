@@ -19,8 +19,6 @@
 
 use std::{collections::BTreeMap, vec};
 
-use chrono;
-
 use chrono::Local;
 use iotdb::client::remote::{Config, RpcSession};
 use iotdb::client::{MeasurementSchema, Result, RowRecord, Session, Tablet, Value};
@@ -246,13 +244,13 @@ fn run() -> Result<()> {
             .get_column_names()
             .iter()
             .for_each(|c| print!("|{:>width$}", c.split('.').last().unwrap(), width = width));
-        print!("|\n");
+        println!("|");
         print_line_sep();
         dataset.get_data_types().iter().for_each(|t| {
             let type_name = format!("{:?}", t);
             print!("|{:>width$}", type_name, width = width)
         });
-        print!("|\n");
+        println!("|");
         print_line_sep();
         dataset.for_each(|r| {
             r.values.iter().for_each(|v| match v {
@@ -264,7 +262,7 @@ fn run() -> Result<()> {
                 Value::Text(v) => print!("|{:>width$}", v, width = width),
                 Value::Null => print!("|{:>width$}", "null", width = width),
             });
-            print!("|\n");
+            println!("|");
         });
         print_line_sep();
     }
@@ -295,7 +293,7 @@ fn run() -> Result<()> {
             "insert into root.sg_rs.dev6(time,s5) values(2,true)",
             "insert into root.sg_rs.dev6(time,s5) values(3,true)",
         ])?;
-        session.delete_timeseries(vec!["root.sg_rs.dev6"])?;
+        session.delete_timeseries(vec!["root.sg_rs.dev6.s5"])?;
     }
     //execute_raw_data_query
     {
@@ -395,7 +393,7 @@ fn create_tablet(row_count: i32, start_timestamp: i64) -> Tablet {
                     Value::Int64(row as i64),
                     Value::Float(row as f32 + 0.1),
                     Value::Double(row as f64 + 0.2),
-                    Value::Text(format!("ts: {}", ts).to_string()),
+                    Value::Text(format!("ts: {}", ts)),
                 ],
                 ts,
             )
