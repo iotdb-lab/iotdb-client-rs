@@ -75,11 +75,11 @@ pub struct Tablet {
     // bitmaps: Vec<Vec<u8>>,
 }
 
-impl Into<Vec<u8>> for &Tablet {
-    fn into(self) -> Vec<u8> {
+impl From<&Tablet> for Vec<u8> {
+    fn from(tablet: &Tablet) -> Vec<u8> {
         let mut buffer: Vec<u8> =
-            Vec::with_capacity(self.get_row_count() * self.get_column_count() * 8);
-        self.columns.iter().for_each(|column| {
+            Vec::with_capacity(tablet.get_row_count() * tablet.get_column_count() * 8);
+        tablet.columns.iter().for_each(|column| {
             column.iter().for_each(|value| match value {
                 Value::Bool(v) => match v {
                     true => buffer.push(1),
@@ -211,9 +211,9 @@ impl From<Vec<u8>> for Value {
     }
 }
 
-impl Into<Vec<u8>> for &Value {
-    fn into(self) -> Vec<u8> {
-        match self {
+impl From<&Value> for Vec<u8> {
+    fn from(v: &Value) -> Vec<u8> {
+        match v {
             Value::Bool(v) => match v {
                 true => vec![TSDataType::Boolean as u8, 1],
                 false => vec![TSDataType::Boolean as u8, 0],

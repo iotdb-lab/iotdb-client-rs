@@ -582,10 +582,8 @@ impl<'a> Session<'a> for RpcSession {
             let resp = self.client.get_time_zone(session_id)?;
             let status = resp.status;
 
-            match check_status(status) {
-                Ok(_) => Ok(resp.time_zone),
-                Err(err) => Err(err),
-            }
+            check_status(status)?;
+            Ok(resp.time_zone)
         } else {
             Err("Operation can't be performed, the session is closed.".into())
         }
@@ -669,11 +667,8 @@ impl<'a> Session<'a> for RpcSession {
                     }
                 }
             } else {
-                if let Err(e) = check_status(status) {
-                    Err(e)
-                } else {
-                    Err(format!("Unknow, code: {}", code).into())
-                }
+                check_status(status)?;
+                Err(format!("Unknow, code: {}", code).into())
             }
         } else {
             Err("Operation can't be performed, the session is closed.".into())
@@ -745,10 +740,8 @@ impl<'a> Session<'a> for RpcSession {
                 };
                 Ok(Box::new(dataset))
             } else {
-                match check_status(status) {
-                    Ok(_) => Err(format!("Unknow, code: {}", code).into()),
-                    Err(err) => Err(err),
-                }
+                check_status(status)?;
+                Err(format!("Unknow, code: {}", code).into())
             }
         } else {
             Err("Operation can't be performed, the session is closed.".into())
@@ -1036,10 +1029,8 @@ impl<'a> Session<'a> for RpcSession {
                     Err("Did't get the result.".into())
                 }
             } else {
-                match check_status(status) {
-                    Ok(_) => Err(format!("Unknow, code: {}", code).into()),
-                    Err(err) => Err(err),
-                }
+                check_status(status)?;
+                Err(format!("Unknow, code: {}", code).into())
             }
         } else {
             Err("Operation can't be performed, the session is closed.".into())
@@ -1109,10 +1100,8 @@ impl<'a> Session<'a> for RpcSession {
                     Ok(None)
                 }
             } else {
-                match check_status(status) {
-                    Ok(_) => Err(format!("Unknow, code: {}", code).into()),
-                    Err(err) => Err(err),
-                }
+                check_status(status)?;
+                Err(format!("Unknow, code: {}", code).into())
             }
         } else {
             Err("Operation can't be performed, the session is closed.".into())

@@ -94,9 +94,9 @@ pub enum TSDataType {
     Text = 5,
 }
 
-impl Into<i32> for TSDataType {
-    fn into(self) -> i32 {
-        match self {
+impl From<TSDataType> for i32 {
+    fn from(t: TSDataType) -> i32 {
+        match t {
             TSDataType::Boolean => 0,
             TSDataType::Int32 => 1,
             TSDataType::Int64 => 2,
@@ -134,9 +134,9 @@ pub enum TSEncoding {
     Gorilla = 8,
 }
 
-impl Into<i32> for TSEncoding {
-    fn into(self) -> i32 {
-        match self {
+impl From<TSEncoding> for i32 {
+    fn from(t: TSEncoding) -> i32 {
+        match t {
             TSEncoding::Plain => 0,
             TSEncoding::PlainDictionary => 1,
             TSEncoding::RLE => 2,
@@ -162,9 +162,9 @@ pub enum TSCompressionType {
     LZ4 = 7,
 }
 
-impl Into<i32> for TSCompressionType {
-    fn into(self) -> i32 {
-        match self {
+impl From<TSCompressionType> for i32 {
+    fn from(t: TSCompressionType) -> i32 {
+        match t {
             TSCompressionType::UNCOMPRESSED => 0,
             TSCompressionType::SNAPPY => 1,
             TSCompressionType::GZIP => 2,
