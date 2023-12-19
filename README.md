@@ -61,7 +61,7 @@ Put this in your `Cargo.toml`:
 
 ```toml
 [dependencies]
-iotdb-client-rs="^0.3.11"
+iotdb-client-rs="^0.3.12"
 ```
 
 ## Example
@@ -70,7 +70,7 @@ Put this in your example's `Cargo.toml`:
 
 ```toml
 [dependencies]
-iotdb-client-rs="^0.3.11"
+iotdb-client-rs="^0.3.12"
 chrono="0.4.19"
 prettytable-rs="0.8.0"
 structopt = "0.3.25"
@@ -111,14 +111,23 @@ fn run() -> Result<()> {
     }
 
     let opt = Opt::from_args();
-    let config = Config {
-        host: opt.host,
-        port: opt.port,
-        username: opt.user,
-        password: opt.password,
-        ..Default::default()
-    };
-    let mut session = RpcSession::new(&config)?;
+    // let config = Config {
+    //     host: opt.host,
+    //     port: opt.port,
+    //     username: opt.user,
+    //     password: opt.password,
+    //     ..Default::default()
+    // };
+
+    // Create config object with builder
+    let config = Config::builder()
+        .host(opt.host)
+        .port(opt.port)
+        .username(opt.user)
+        .password(opt.password)
+        .build();
+
+    let mut session = RpcSession::new(config)?;
     session.open()?;
 
     //time_zone

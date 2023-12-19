@@ -51,14 +51,23 @@ fn run() -> Result<()> {
     }
 
     let opt = Opt::from_args();
-    let config = Config {
-        host: opt.host,
-        port: opt.port,
-        username: opt.user,
-        password: opt.password,
-        ..Default::default()
-    };
-    let mut session = RpcSession::new(&config)?;
+    // let config = Config {
+    //     host: opt.host,
+    //     port: opt.port,
+    //     username: opt.user,
+    //     password: opt.password,
+    //     ..Default::default()
+    // };
+
+    // Create config object with builder
+    let config = Config::builder()
+        .host(opt.host)
+        .port(opt.port)
+        .username(opt.user)
+        .password(opt.password)
+        .build();
+
+    let mut session = RpcSession::new(config)?;
     session.open()?;
 
     //time_zone

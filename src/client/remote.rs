@@ -29,6 +29,7 @@ use thrift::{
     },
     transport::{TFramedReadTransport, TFramedWriteTransport, TTcpChannel},
 };
+use typed_builder::TypedBuilder;
 
 use crate::client::rpc::{
     TSCreateMultiTimeseriesReq, TSCreateTimeseriesReq, TSIServiceSyncClient, TSInsertRecordsReq,
@@ -50,19 +51,64 @@ use super::{
 };
 use super::{DataSet, Dictionary, Result, Session, Value};
 
-static DEFAULT_TIME_ZONE: &str = "Asia/Shanghai";
+const DEFAULT_TIME_ZONE: &str = "Asia/Shanghai";
 
-#[derive(Debug, Clone)]
+impl From<TSStatus> for core::result::Result<(), Box<dyn Error>> {
+    fn from(status: TSStatus) -> Self {
+        match status.code {
+            SUCCESS_STATUS | NEED_REDIRECTION => Ok(()),
+            MULTIPLE_ERROR => {
+                let mut messges = String::new();
+                if let Some(sub_status) = status.sub_status {
+                    for s in sub_status {
+                        if s.code != SUCCESS_STATUS && s.code != NEED_REDIRECTION {
+                            if let Some(msg) = s.message {
+                                messges.push_str(format!("Code: {}, {}", s.code, msg).as_str());
+                                messges.push(';');
+                            }
+                        }
+                    }
+                }
+                if !messges.is_empty() {
+                    Err(messges.into())
+                } else {
+                    Ok(())
+                }
+            }
+            _ => {
+                if let Some(message) = status.message {
+                    Err(format!("code: {}, {}", status.code, message).into())
+                } else {
+                    Err(format!("code: {}", status.code).into())
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, TypedBuilder)]
+#[builder(field_defaults(default, setter(into)))]
+
 pub struct Config {
+    #[builder(default = String::from("127.0.0.1"))]
     pub host: String,
+    #[builder(default = 6667)]
     pub port: i32,
+    #[builder(default = String::from("root"))]
     pub username: String,
+    #[builder(default = String::from("root"))]
     pub password: String,
+    #[builder(default = Some(3000))]
     pub timeout_ms: Option<i64>,
+    #[builder(default = 1000)]
     pub fetch_size: i32,
+    #[builder(default = Some(String::from(DEFAULT_TIME_ZONE)))]
     pub timezone: Option<String>,
+    #[builder(default = false)]
     pub enable_compression: bool,
+    #[builder(default = TSProtocolVersion::IOTDB_SERVICE_PROTOCOL_V3)]
     pub protocol_version: TSProtocolVersion,
+    #[builder(default = true)]
     pub is_align: bool,
 }
 
@@ -90,8 +136,8 @@ pub struct RpcSession {
     client: TSIServiceSyncClient<Box<dyn TInputProtocol>, Box<dyn TOutputProtocol>>,
 }
 
-impl<'a> RpcSession {
-    pub fn new(config: &'a Config) -> Result<Self> {
+impl RpcSession {
+    pub fn new(config: Config) -> Result<Self> {
         let mut tcp_channel = TTcpChannel::new();
         let endpint = format!("{}:{}", config.host, config.port);
 
@@ -120,7 +166,7 @@ impl<'a> RpcSession {
             };
 
         Ok(Self {
-            config: config.clone(),
+            config: config,
             session_id: None,
             statement_id: -1,
             client: TSIServiceSyncClient::new(input_protocol, output_protocol),
@@ -138,19 +184,19 @@ impl<'a> Iterator for RpcDataSet<'a> {
             let ts = self.query_data_set.time.drain(0..8).collect::<Vec<u8>>();
             self.timestamp = i64::from_be_bytes(ts.try_into().unwrap());
 
-            for (column_index, column_data) in self.query_data_set.value_list.iter_mut().enumerate()
-            {
+            for column_index in 0..self.query_data_set.value_list.len() {
                 if self.row_index % 8 == 0 {
                     self.bitmaps[column_index] =
                         self.query_data_set.bitmap_list[column_index].remove(0);
                 }
 
-                let bitmap = self.bitmaps[column_index];
-                let shift = self.row_index % 8;
-                let null = ((FLAG >> shift) & (bitmap & 0xff)) == 0;
+                let null = self.is_null(column_index, self.row_index);
 
-                // self.is_null(column_index, self.row_index);
-
+                let column_data = self
+                    .query_data_set
+                    .value_list
+                    .get_mut(column_index)
+                    .unwrap();
                 if !null {
                     let original_column_index = self.column_index_map.get(&column_index).unwrap();
                     let data_type = self.data_types.get(*original_column_index).unwrap();
@@ -186,7 +232,7 @@ impl<'a> Iterator for RpcDataSet<'a> {
                                     .try_into()
                                     .unwrap(),
                             );
-                            bytes.extend(column_data.drain(0..len as usize).collect::<Vec<u8>>());
+                            bytes.extend(column_data.drain(0..len as usize).collect::<Vec<_>>());
                         }
                     }
                     values.push(Value::from(bytes));
@@ -219,7 +265,7 @@ impl<'a> Iterator for RpcDataSet<'a> {
     }
 }
 
-pub struct RpcDataSet<'a> {
+pub(crate) struct RpcDataSet<'a> {
     session: &'a mut RpcSession,
     statement: String,
     query_id: i64,
@@ -236,7 +282,6 @@ pub struct RpcDataSet<'a> {
 }
 
 impl<'a> RpcDataSet<'a> {
-    #[allow(dead_code)]
     fn is_null(&self, column_index: usize, row_index: usize) -> bool {
         let bitmap = self.bitmaps[column_index];
         let shift = row_index % 8;
@@ -263,7 +308,9 @@ impl<'a> RpcDataSet<'a> {
                     }) {
                     Ok(resp) => {
                         let status = resp.status;
-                        match check_status(status) {
+                        let res: Result<()> = status.into();
+
+                        match res {
                             Ok(_) => {
                                 if resp.has_result_set {
                                     //update query_data_set and release row_index
@@ -304,14 +351,17 @@ impl<'a> RpcDataSet<'a> {
                         query_id: Some(self.query_id),
                         statement_id: Some(self.session.statement_id),
                     }) {
-                    Ok(status) => match check_status(status) {
-                        Ok(_) => {
-                            self.closed = true;
+                    Ok(status) => {
+                        let res: Result<()> = status.into();
+                        match res {
+                            Ok(_) => {
+                                self.closed = true;
+                            }
+                            Err(err) => {
+                                eprint!("An error occurred when closing dataset {:?}", err)
+                            }
                         }
-                        Err(err) => {
-                            eprint!("An error occurred when closing dataset {:?}", err)
-                        }
-                    },
+                    }
                     Err(err) => {
                         eprint!("An error occurred when closing dataset {:?}", err)
                     }
@@ -359,37 +409,6 @@ impl<'a> DataSet for RpcDataSet<'a> {
     }
 }
 
-fn check_status(status: TSStatus) -> Result<()> {
-    match status.code {
-        SUCCESS_STATUS | NEED_REDIRECTION => Ok(()),
-        MULTIPLE_ERROR => {
-            let mut messges = String::new();
-            if let Some(sub_status) = status.sub_status {
-                for s in sub_status {
-                    if s.code != SUCCESS_STATUS && s.code != NEED_REDIRECTION {
-                        if let Some(msg) = s.message {
-                            messges.push_str(format!("Code: {}, {}", s.code, msg).as_str());
-                            messges.push(';');
-                        }
-                    }
-                }
-            }
-            if !messges.is_empty() {
-                Err(messges.into())
-            } else {
-                Ok(())
-            }
-        }
-        _ => {
-            if let Some(message) = status.message {
-                Err(format!("code: {}, {}", status.code, message).into())
-            } else {
-                Err(format!("code: {}", status.code).into())
-            }
-        }
-    }
-}
-
 fn fire_closed_error() -> Result<()> {
     Err("Operation can't be performed, the session is closed.".into())
 }
@@ -406,14 +425,10 @@ impl<'a> Session<'a> for RpcSession {
             self.config.password.clone(),
             None,
         ))?;
-        let status = resp.status;
-        match check_status(status) {
-            Ok(_) => {
-                self.session_id = resp.session_id;
-                Ok(())
-            }
-            Err(err) => Err(err),
-        }
+        let res: Result<()> = resp.status.into();
+        res?;
+        self.session_id = resp.session_id;
+        Ok(())
     }
 
     fn close(&mut self) -> Result<()> {
@@ -422,7 +437,7 @@ impl<'a> Session<'a> for RpcSession {
                 .client
                 .close_session(TSCloseSessionReq::new(session_id))?;
             self.session_id = None;
-            check_status(status)
+            status.into()
         } else {
             fire_closed_error()
         }
@@ -433,7 +448,7 @@ impl<'a> Session<'a> for RpcSession {
             let status = self
                 .client
                 .set_storage_group(session_id, storage_group_id.into())?;
-            check_status(status)
+            status.into()
         } else {
             fire_closed_error()
         }
@@ -449,7 +464,7 @@ impl<'a> Session<'a> for RpcSession {
                 session_id,
                 storage_group_ids.iter().map(ToString::to_string).collect(),
             )?;
-            check_status(status)
+            status.into()
         } else {
             fire_closed_error()
         }
@@ -470,18 +485,19 @@ impl<'a> Session<'a> for RpcSession {
         T: Into<Option<Dictionary>>,
     {
         if let Some(session_id) = self.session_id {
-            let status = self.client.create_timeseries(TSCreateTimeseriesReq::new(
-                session_id,
-                path.to_string(),
-                data_type.into(),
-                encoding.into(),
-                compressor.into(),
-                props,
-                tags,
-                attributes,
-                measurement_alias,
-            ))?;
-            check_status(status)
+            self.client
+                .create_timeseries(TSCreateTimeseriesReq::new(
+                    session_id,
+                    path.to_string(),
+                    data_type.into(),
+                    encoding.into(),
+                    compressor.into(),
+                    props,
+                    tags,
+                    attributes,
+                    measurement_alias,
+                ))?
+                .into()
         } else {
             fire_closed_error()
         }
@@ -518,7 +534,7 @@ impl<'a> Session<'a> for RpcSession {
                     tags_list,
                     measurement_alias_list,
                 ))?;
-            check_status(status)
+            status.into()
         } else {
             fire_closed_error()
         }
@@ -529,7 +545,7 @@ impl<'a> Session<'a> for RpcSession {
             let status = self
                 .client
                 .delete_timeseries(session_id, paths.iter().map(ToString::to_string).collect())?;
-            check_status(status)
+            status.into()
         } else {
             fire_closed_error()
         }
@@ -543,7 +559,7 @@ impl<'a> Session<'a> for RpcSession {
                 start_time,
                 end_time,
             ))?;
-            check_status(status)
+            status.into()
         } else {
             fire_closed_error()
         }
@@ -571,7 +587,7 @@ impl<'a> Session<'a> for RpcSession {
                     timestamp,
                     is_aligned,
                 ))?;
-            check_status(status)
+            status.into()
         } else {
             fire_closed_error()
         }
@@ -580,9 +596,8 @@ impl<'a> Session<'a> for RpcSession {
     fn get_time_zone(&mut self) -> Result<String> {
         if let Some(session_id) = self.session_id {
             let resp = self.client.get_time_zone(session_id)?;
-            let status = resp.status;
-
-            check_status(status)?;
+            let res: Result<()> = resp.status.into();
+            res?;
             Ok(resp.time_zone)
         } else {
             Err("Operation can't be performed, the session is closed.".into())
@@ -591,10 +606,9 @@ impl<'a> Session<'a> for RpcSession {
 
     fn set_time_zone(&mut self, time_zone: &str) -> Result<()> {
         if let Some(session_id) = self.session_id {
-            let status = self
-                .client
-                .set_time_zone(TSSetTimeZoneReq::new(session_id, time_zone.to_string()))?;
-            check_status(status)
+            self.client
+                .set_time_zone(TSSetTimeZoneReq::new(session_id, time_zone.to_string()))?
+                .into()
         } else {
             fire_closed_error()
         }
@@ -667,7 +681,8 @@ impl<'a> Session<'a> for RpcSession {
                     }
                 }
             } else {
-                check_status(status)?;
+                let res: Result<()> = status.into();
+                res?;
                 Err(format!("Unknow, code: {}", code).into())
             }
         } else {
@@ -740,7 +755,8 @@ impl<'a> Session<'a> for RpcSession {
                 };
                 Ok(Box::new(dataset))
             } else {
-                check_status(status)?;
+                let res: Result<()> = status.into();
+                res?;
                 Err(format!("Unknow, code: {}", code).into())
             }
         } else {
@@ -773,7 +789,7 @@ impl<'a> Session<'a> for RpcSession {
                 timestamp,
                 is_aligned,
             ))?;
-            check_status(status)
+            status.into()
         } else {
             fire_closed_error()
         }
@@ -823,7 +839,7 @@ impl<'a> Session<'a> for RpcSession {
                         sorted_timestamps,
                         false,
                     ))?;
-            check_status(status)
+            status.into()
         } else {
             fire_closed_error()
         }
@@ -859,7 +875,7 @@ impl<'a> Session<'a> for RpcSession {
                 timestamps,
                 is_aligned: None,
             })?;
-            check_status(status)
+            status.into()
         } else {
             fire_closed_error()
         }
@@ -891,7 +907,7 @@ impl<'a> Session<'a> for RpcSession {
                 size: tablet.get_row_count() as i32,
                 is_aligned: Some(false),
             })?;
-            check_status(status)
+            status.into()
         } else {
             fire_closed_error()
         }
@@ -943,7 +959,7 @@ impl<'a> Session<'a> for RpcSession {
                     .collect(),
                 is_aligned: Some(false),
             })?;
-            check_status(status)
+            status.into()
         } else {
             fire_closed_error()
         }
@@ -957,7 +973,7 @@ impl<'a> Session<'a> for RpcSession {
                         session_id,
                         statements: statemens.iter().map(ToString::to_string).collect(),
                     })?;
-            check_status(status)
+            status.into()
         } else {
             fire_closed_error()
         }
@@ -1029,7 +1045,8 @@ impl<'a> Session<'a> for RpcSession {
                     Err("Did't get the result.".into())
                 }
             } else {
-                check_status(status)?;
+                let res: Result<()> = status.into();
+                res?;
                 Err(format!("Unknow, code: {}", code).into())
             }
         } else {
@@ -1100,7 +1117,8 @@ impl<'a> Session<'a> for RpcSession {
                     Ok(None)
                 }
             } else {
-                check_status(status)?;
+                let res: Result<()> = status.into();
+                res?;
                 Err(format!("Unknow, code: {}", code).into())
             }
         } else {
